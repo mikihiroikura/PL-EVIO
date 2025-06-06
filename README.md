@@ -147,12 +147,6 @@ Users can visualize the event streams to see whether it is similiar to the edge 
 
 #### 3.2.2 Sensor calibration
 In order to launch PL-EVIO on your own hardware setup, you need to have a carefully calibration of the extrinsic among Event, Image and IMU. We recommend you using the following the link ([DVS-IMU Calibration and Synchronization](https://arclab-hku.github.io/ecmd/calibration/)) to kindly calibrate your sensors.
-</br>
-Following that, you can execute the provided roslaunch file to initialize the stereo event cameras and commence our PL-EVIO:
-~~~
-roslaunch PL-EVIO_estimator mono_davis_open.launch
-roslaunch PL-EVIO_estimator PL-EVIO.launch
-~~~
 
 
 ## Acknowledgement
