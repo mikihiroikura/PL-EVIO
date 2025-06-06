@@ -86,7 +86,7 @@ User can choose either one.
 sudo apt-get install libcaer-dev
 ~~~
 
-*Step 2: Create a catkin workspace and copy the driver code:
+* Step 2: Create a catkin workspace and copy the driver code:
 ~~~
 mkdir -p ~/catkin_ws_dvs/src
 cd ~/catkin_ws_dvs
