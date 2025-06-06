@@ -168,7 +168,11 @@ If you find this work is helpful in your research, a simple star or citation of 
   title={PL-EVIO: Robust Monocular Event-based Visual Inertial Odometry with Point and Line Features},
   author={Guan, Weipeng and Chen, Peiyu and Xie, Yuhan and Lu, Peng},
   journal={IEEE Transactions on Automation Science and Engineering},
-  year={2023}
+  volume={21},
+  number={4},
+  pages={6277--6293},
+  year={2023},
+  publisher={IEEE}
 }
 ~~~
 
