@@ -42,118 +42,79 @@ Furthermore, we demonstrate the effectiveness of our pipeline through onboard cl
 1.3 we use catkin build, and all the dependency files are stored within the folder `dependences`.
 
 ## 2. Build
-~~~
-mkdir -p catkin_ws_dvs/src
-cd catkin_ws_dvs
+
+```sh
+# rm -rf ~/.catkin_tools #if you have another catkin build workspace
+mkdir -p catkin_ws_evio/src
+cd catkin_ws_evio
 catkin config --init --mkdirs --extend /opt/ros/noetic --merge-devel --cmake-args -DCMAKE_BUILD_TYPE=Release
-cd ~/catkin_ws_dvs/src
-git clone git@github.com:arclab-hku/PL-EVIO_open.git --recursive
-~~~
+cd ~/catkin_ws_evio/src
+git clone git@github.com:ERGlab/PLEVIO.git --recursive
+```
 
 You should modifie your `.bashrc` file through `gedit ~/.bashrc`, add the following codes in it:
-~~~
-source ~/catkin_ws_dvs/devel/setup.bash
-alias EVIObuild='cd ~/catkin_ws_dvs/src && catkin build PL-EVIO_estimator feature_tracker pose_graph -DCMAKE_BUILD_TYPE=Release -j8'
-~~~
 
-After that, run the `source ~/.bashrc ` and `EVIObuild` command in your terminal.
+```sh
+source ~/catkin_ws_evio/devel/setup.bash
+alias pleviobuild='cd ~/catkin_ws_evio/src && catkin build evio_estimator feature_tracker pose_graph -DCMAKE_BUILD_TYPE=Release -j8'
+```
+
+After that, run the `source ~/.bashrc ` and `pleviobuild` command in your terminal.
 
 ## 3. Run on Dataset
-
-### 3.1 Run on HKU-dataset
-#### 3.1.1 Download our rosbag files ([HKU-dataset](https://github.com/arclab-hku/Event_based_VO-VIO-SLAM))
-Our datasets for evaluation can be download from our One-drive or Baidu-Disk. 
 We have released all the rosbag files for evaluating PL-EVIO, with the introduction of these datasets can be found on this [page](https://github.com/arclab-hku/Event_based_VO-VIO-SLAM#Dataset-for-monocular-evio).
 </br>
 For the convenience of the community, we also release the raw results of our methods in the form of rosbag ([link](https://github.com/arclab-hku/Event_based_VO-VIO-SLAM/blob/main/Results_for_comparison.md)). 
 
+
+<!-- ******************************************************* -->
+### 3.1 Run on Stereo HKU-dataset
+#### 3.1.1 Download our rosbag files ([Stereo HKU-dataset](https://github.com/arclab-hku/Event_based_VO-VIO-SLAM#Dataset-for-stereo-evio))
+
 #### 3.1.2 Run our examples
 After you have downloaded our bag files, you can now run our example:
-~~~
-roslaunch PL-EVIO_estimator PL-EVIO.launch 
-rosbag play YOUR_DOWNLOADED.bag
-~~~
 
-### 3.2 Run on Your Event Camera
-#### 3.2.1 Driver Installation
-We thanks the [rpg_dvs_ros](https://github.com/uzh-rpg/rpg_dvs_ros) and [DV ROS](https://gitlab.com/inivation/dv/dv-ros) for their intructions of event camera driver.
-We add some modification for the code, and the driver code of the event camera is available in [link](https://github.com/arclab-hku/Event_based_VO-VIO-SLAM/tree/main/driver_code).
-User can choose either one.
-
-##### For rpg_dvs_ros
-* Step 1: Install libcaer (add required repositories as per [iniVation documentation](https://inivation.gitlab.io/dv/dv-docs/docs/getting-started.html#ubuntu-linux) first):
-~~~
-sudo apt-get install libcaer-dev
-~~~
-
-* Step 2: Create a catkin workspace and copy the driver code:
-~~~
-mkdir -p ~/catkin_ws_dvs/src
-cd ~/catkin_ws_dvs
-catkin config --init --mkdirs --extend /opt/ros/noetic --merge-devel --cmake-args -DCMAKE_BUILD_TYPE=Release`
-cd ~/catkin_ws_dvs/src
-~~~
-
-And then copy the code from our link, or directly use the driver code in the dependences folder
-
-* Step 3: Build the packages:
-~~~
-catkin build davis_ros_driver  (if you are using the DAVIS)
-catkin build dvxplorer_ros_driver  (if you are using the DVXplorer)
-
-source ~/catkin_ws_dvs/devel/setup.bash
-~~~
-
-* Step 4: After source your environment, you can open your event camera:
-~~~
-roslaunch dvs_renderer davis_mono.launch` (if you are using the DAVIS)
-roslaunch dvs_renderer dvxplorer_mono.launch` (if you are using the DVXplorer)
-~~~
-
-##### For DV ROS
-* Step 1: Instalizing DV software libraries:
-~~~
-sudo add-apt-repository ppa:inivation-ppa/inivation
-sudo apt update
-sudo apt install dv-processing dv-runtime-dev gcc-10 g++-10
-~~~
-
-* Step 2: It is build using catkin tools, run the following commands from your catkin workspace:
-~~~
-mkdir -p ~/catkin_ws_dvs/src
-cd ~/catkin_ws_dvs
-catkin config --init --mkdirs --extend /opt/ros/noetic --merge-devel --cmake-args -DCMAKE_BUILD_TYPE=Release`
-cd ~/catkin_ws_dvs/src
-~~~
-
-And then copy the code from our link.
-
-* Step 3: Modifying your `.bashrc` file, add the following codes in it:
-~~~
-source ~/catkin_dvs_ws/devel/setup.bash
-
-alias dvsbuild='cd ~/catkin_dvs_ws && catkin build dv_ros_accumulation dv_ros_capture dv_ros_imu_bias dv_ros_messaging dv_ros_runtime_modules dv_ros_tracker dv_ros_visualization -DCMAKE_BUILD_TYPE=Release --cmake-args -DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10'
-
-alias dvsrun='cd ~/catkin_dvs_ws/src/Event_based_VO-VIO-SLAM/driver_code/dv-ros-master/script && sh run.sh'
-~~~
-
-* Step 4: the user can directly run the following command `dvsbuild` or `dvsrun` in the terminal to build the project and run your event camera, respectively.
-
-**Tips**: Users need to adjust the lens of the camera, such as the focal length, aperture.
-Filters are needed for avoiding the interfere from infrared light under the motion capture system.
-For the dvxplorer, the sensitive of event generation should be set, e.g. `bias_sensitivity`.
-Users can visualize the event streams to see whether it is similiar to the edge map of the testing environments, and then fine-tune it.
+```sh
+roslaunch evio_estimator plevio_stereo_hku.launch 
+rosbag play --pause --clock ~/dataset/HKU_aggressive_small_flip.bag
+```
 
 
-#### 3.2.2 Sensor calibration
-In order to launch PL-EVIO on your own hardware setup, you need to have a carefully calibration of the extrinsic among Event, Image and IMU. We recommend you using the following the link ([DVS-IMU Calibration and Synchronization](https://arclab-hku.github.io/ecmd/calibration/)) to kindly calibrate your sensors.
+<!-- ******************************************************* -->
+### 3.2 Run on Mono HKU-dataset
+#### 3.3.1 Download our rosbag files ([Mono HKU-dataset](https://github.com/arclab-hku/Event_based_VO-VIO-SLAM#Dataset-for-monocular-evio))
+
+#### 3.3.2 Run vicon_hdr4 as examples
+After you have downloaded our bag files, you can now run:
+
+```sh
+roslaunch evio_estimator plevio_mono_hku.launch 
+rosbag play --pause --clock ~/dataset/vicon_hdr4.bag
+```
 
 
+<!-- ******************************************************* -->
+### 3.3 Run on DAVIS240C dataset
+#### 3.3.1 Download rosbag files ([davis240c](https://rpg.ifi.uzh.ch/davis_data.html))
+
+#### 3.3.2 Run boxes_translation as examples
+After you have downloaded the bag files, you can now run:
+
+```sh
+roslaunch evio_estimator plevio_davis240c.launch 
+rosbag play --pause --clock ~/dataset/boxes_translation.bag
+```
+
+### 3.4 Run on Your Event Camera
+* We recommend to follow the instruction on ([DVS-IMU Calibration and Synchronization](https://arclab-hku.github.io/ecmd/calibration/)) to calibrate your sensors.
+* Refer to our [ESVIO](https://github.com/arclab-hku/ESVIO)
+
+
+<!-- ******************************************************* -->
 ## Acknowledgement
 This work was supported by General Research Fund under Grant 17204222, and in part by the Seed Fund for Collaborative Research and General Funding Scheme-HKU-TCL Joint Research Center for Artificial
 Intelligence.
-
-We use ([VINS-Mono](https://github.com/HKUST-Aerial-Robotics/VINS-Mono)) as our baseline code. Thanks Dr. Qin Tong, Prof. Shen, etc. very much.
+We use ([VINS-Mono](https://github.com/HKUST-Aerial-Robotics/VINS-Mono)) as our backbone code. Thanks Dr. Qin Tong, Prof. Shen, etc. very much.
 
 If you find this work is helpful in your research, a simple star or citation of our works should be the best affirmation for us. :blush:
 

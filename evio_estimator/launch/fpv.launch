@@ -1,0 +1,66 @@
+<launch>
+<!-- 注意fpv数据集是有不同的参数的请选择适当的参数 -->
+    <arg name="config_path" default = "$(find feature_tracker)/../config/fpv/indoor_forward.yaml" />
+    <!-- <arg name="config_path" default = "$(find feature_tracker)/../config/fpv/indoor_45_degree.yaml" /> -->
+    <!-- <arg name="config_path" default = "$(find feature_tracker)/../config/fpv/outdoor_forward.yaml" /> -->
+    <!-- <arg name="config_path" default = "$(find feature_tracker)/../config/fpv/outdoor_45_degree.yaml" /> -->
+
+    <arg name="vins_path" default = "$(find feature_tracker)/../config/../" />
+    
+<!-- 要根据需求输出log（output） -->
+
+    <!-- 检测事件特征 -->
+
+   <!-- <node name="feature_tracker" pkg="feature_tracker" type="feature_tracker" output="screen"  respawn="true">
+        <param name="config_file" type="string" value="$(arg config_path)" />
+        <param name="vins_folder" type="string" value="$(arg vins_path)" />
+    </node> -->
+    <node name="feature_tracker" pkg="feature_tracker" type="feature_tracker" output="screen" launch-prefix="gnome-terminal -x">
+        <param name="config_file" type="string" value="$(arg config_path)" />
+        <param name="vins_folder" type="string" value="$(arg vins_path)" />
+    </node>
+
+    <!-- <node name="feature_tracker" pkg="feature_tracker" type="feature_tracker" output="screen" launch-prefix="gdb -ex run -args ">
+        <param name="config_file" type="string" value="$(arg config_path)" />
+        <param name="vins_folder" type="string" value="$(arg vins_path)" />
+    </node> -->
+
+
+    <!-- 检测图像特征 -->
+    <node name="image_feature_tracker" pkg="feature_tracker" type="image_feature_tracker" launch-prefix="gnome-terminal -x" output="screen">
+        <param name="config_file" type="string" value="$(arg config_path)" />
+        <param name="vins_folder" type="string" value="$(arg vins_path)" />
+    </node>
+
+<!-- *********************************   VIO估计器应该要保证一直开着   *********************************     -->
+    <node name="evio_estimator" pkg="evio_estimator" type="evio_estimator" output="screen" respawn="true">
+       <param name="config_file" type="string" value="$(arg config_path)" />
+       <param name="vins_folder" type="string" value="$(arg vins_path)" />
+    </node>
+    <!-- <node name="evio_estimator" pkg="evio_estimator" type="evio_estimator" output="log" >
+       <param name="config_file" type="string" value="$(arg config_path)" />
+       <param name="vins_folder" type="string" value="$(arg vins_path)" />
+    </node> -->
+
+<!-- *********************************   pose graph    *********************************     -->
+    <node name="pose_graph" pkg="pose_graph" type="pose_graph" output="screen" launch-prefix="gnome-terminal -x">
+        <param name="config_file" type="string" value="$(arg config_path)" />
+        <param name="visualization_shift_x" type="int" value="0" />
+        <param name="visualization_shift_y" type="int" value="0" />
+        <param name="skip_cnt" type="int" value="0" />
+        <param name="skip_dis" type="double" value="0" />
+    </node>
+    <!-- <node name="pose_graph" pkg="pose_graph" type="pose_graph" output="log">
+        <param name="config_file" type="string" value="$(arg config_path)" />
+        <param name="visualization_shift_x" type="int" value="0" />
+        <param name="visualization_shift_y" type="int" value="0" />
+        <param name="skip_cnt" type="int" value="0" />
+        <param name="skip_dis" type="double" value="0" />
+    </node> -->
+
+     <!-- <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" launch-prefix="gnome-terminal -x" args="-d $(find evio_estimator)/../config/vins_rviz_config.rviz" /> -->
+    <!-- <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" launch-prefix="gnome-terminal -x" args="-d $(find evio_estimator)/../config/evio_vicon_evaluation_rviz_config.rviz" /> -->
+
+    <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find evio_estimator)/../config/pl_eio.rviz" />
+
+</launch>
