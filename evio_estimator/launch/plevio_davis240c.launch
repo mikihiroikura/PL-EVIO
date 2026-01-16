@@ -6,14 +6,14 @@
 <!-- 要根据需求输出log（output） -->
 
     <!-- 检测事件特征 -->
-    <node name="feature_tracker" pkg="feature_tracker" type="feature_tracker" output="screen" launch-prefix="gnome-terminal -x">
+    <node name="feature_tracker" pkg="feature_tracker" type="feature_tracker" output="screen">
         <param name="config_file" type="string" value="$(arg config_path)" />
         <param name="vins_folder" type="string" value="$(arg vins_path)" />
     </node>
 
 
     <!-- 检测图像特征 -->
-    <node name="image_feature_tracker" pkg="feature_tracker" type="image_feature_tracker" launch-prefix="gnome-terminal -x" output="screen">
+    <node name="image_feature_tracker" pkg="feature_tracker" type="image_feature_tracker" output="screen">
         <param name="config_file" type="string" value="$(arg config_path)" />
         <param name="vins_folder" type="string" value="$(arg vins_path)" />
     </node>
@@ -25,7 +25,7 @@
     </node>
 
 <!-- *********************************   pose graph    *********************************     -->
-    <node name="pose_graph" pkg="pose_graph" type="pose_graph" output="screen" launch-prefix="gnome-terminal -x">
+    <node name="pose_graph" pkg="pose_graph" type="pose_graph" output="screen">
         <param name="config_file" type="string" value="$(arg config_path)" />
         <param name="visualization_shift_x" type="int" value="0" />
         <param name="visualization_shift_y" type="int" value="0" />

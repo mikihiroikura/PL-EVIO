@@ -1,0 +1,15 @@
+services:
+  plevio:
+    image: pl-evio:latest
+    container_name: plevio
+    privileged: true
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+      - /tmp/.X11-unix/:/tmp/.X11-unix
+      - ${HOME}/.Xauthority:/home/plevio/.Xauthority:ro
+      - .:/home/plevio/catkin_ws/src/PL-EVIO                  # Mount this code in docker container for development
+      - ${DATA_DIR}:/data # Mount recorded data from host. Please change directory. Copy .env-example as .env and modify path of DATA_DIR
+    environment:
+      - DISPLAY=${DISPLAY}
+    network_mode: host
+    command: sleep infinity
