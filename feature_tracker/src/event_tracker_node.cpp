@@ -377,6 +377,20 @@ int main(int argc, char **argv)
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info); // 设置ros log级别
     readParameters(n); // 读取配置文件
 
+    // If LINE_SEGMENTS_CSV is not empty, initialize the line detector with the CSV file
+    if (LINE_SEGMENTS_CSV != "") {
+        ROS_INFO("Initializing line detector with CSV file: %s", LINE_SEGMENTS_CSV.c_str());
+        all_line_segments = loadLineSegmentsFromCSV(LINE_SEGMENTS_CSV);
+        ROS_INFO("Loaded %lu timestamps of line segments from CSV.", all_line_segments.timestamps.size());
+        ROS_INFO("Line segments at timestamp %f: %d", all_line_segments.timestamps[1], all_line_segments.line_segments_per_timestamp[1].size());
+        if (all_line_segments.line_segments_per_timestamp[1].size() > 0) {
+            cv::line_descriptor::KeyLine test_line = all_line_segments.line_segments_per_timestamp[1][0];
+            ROS_INFO("Test line details: angle=%f, class_id=%d, endPoint=(%f, %f), startPoint=(%f, %f), size=%f, numOfPixels=%d, lineLength=%f, octave=%d, sPointInOctaveX=%f, response=%f",
+                     test_line.angle, test_line.class_id, test_line.endPointX, test_line.endPointY, test_line.startPointX, test_line.startPointY,
+                     test_line.size, test_line.numOfPixels, test_line.lineLength, test_line.octave, test_line.sPointInOctaveX, test_line.response);
+        }
+    }
+
     for (int i = 0; i < NUM_OF_CAM; i++)
         trackerData[i].readIntrinsicParameter(CAM_NAMES[i]);  // 获得每个相机的内参
 

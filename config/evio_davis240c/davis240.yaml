@@ -5,7 +5,7 @@ imu_topic: "/dvs/imu"
 image_topic: "/dvs/image_raw"
 event_topic: "/dvs/events"   # this is modified
 # event_topic: "/davis240c/events"   # this is modified
-# output_path: "/home/kwanwaipang/dataset/fpv_result/output"
+output_path: "/home/plevio"
 
 ###########################################################################################################################
 
@@ -114,3 +114,9 @@ save_image: 1                   #  (DEBUG_IMAGE)   save image in pose graph for 
 visualize_imu_forward: 1        # output imu forward propogation to achieve low latency and high frequence results
 visualize_camera_size: 0.4      # size of camera marker in RVIZ
 save_loop_match: 0              # 
+
+###########################################################################################################################################################
+# line segments csv file
+# line_segments_csv: "/data/LineSegments/LEDGE/dynamic_6dof/ledge_par/a10_th020/ledge_refined_lsg.csv"
+# rosbag_start_time: 1473347517.06
+use_only_endpoints: 1

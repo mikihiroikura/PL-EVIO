@@ -768,7 +768,36 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
     // （线特征的检测与提取。此处需要更换为提取event的线特征，关键为获得什么样的std::vector<cv::line_descriptor::KeyLine> lsd）
     // 匹配跟特征提取应该保持一致性，才合理
 
-
+    // Modify LSD output for fair comparison
+    if (USE_ONLY_ENDPOINTS) {
+        for (size_t i = 1; i < lsd.size(); i++ ) {
+            cv::line_descriptor::KeyLine kl;
+            if (lsd[i].startPointX < lsd[i].endPointX) {
+                kl.startPointX = lsd[i].startPointX;
+                kl.startPointY = lsd[i].startPointY;
+                kl.endPointX = lsd[i].endPointX;
+                kl.endPointY = lsd[i].endPointY;
+            } else {
+                kl.startPointX = lsd[i].endPointX;
+                kl.startPointY = lsd[i].endPointY;
+                kl.endPointX = lsd[i].startPointX;
+                kl.endPointY = lsd[i].startPointY;
+            }
+            kl.angle = atan2(kl.endPointY - kl.startPointY, kl.endPointX - kl.startPointX);
+            kl.class_id = i;
+            kl.octave = 0;
+            kl.pt = cv::Point2f((kl.startPointX + kl.endPointX) / 2.0f, (kl.startPointY + kl.endPointY) / 2.0f);
+            kl.lineLength = sqrt(pow(kl.endPointX - kl.startPointX, 2) + pow(kl.endPointY - kl.startPointY, 2));
+            kl.numOfPixels = std::ceil(kl.lineLength);
+            kl.response = 1.0f; // Placeholder value
+            kl.size = 1.0f;     // Placeholder value
+            kl.sPointInOctaveX = kl.startPointX;
+            kl.sPointInOctaveY = kl.startPointY;
+            kl.ePointInOctaveX = kl.endPointX;
+            kl.ePointInOctaveY = kl.endPointY;
+            lsd[i] = kl;
+        }
+    }
 
     cv::Mat lbd_descr, keylbd_descr;//产生描述子进行匹配
     //线特征的描述子仍然采用lsd的
@@ -1049,6 +1078,213 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
     mutex_threads.unlock();
 }
 
+
+void process_linefeature_from_csv(FeatureTracker *this_object, const cv::Mat img_line, bool first_img, const cv::Mat event_mat, double cur_time)
+{
+    mutex_threads.lock();
+
+    //push 当前信息
+    this_object->forwframe_.reset(new FrameLines);  // 初始化一个新的帧
+    this_object->forwframe_->img = img_line;
+    this_object->forwframe_->event_img=event_mat;
+
+    // 先对time surface进行中值滤波处理
+    cv::Mat line_process_blur=img_line.clone();//用time surface来提取特征与匹配
+    cv::medianBlur(line_process_blur, line_process_blur, 3);//中值滤波
+
+
+    // Extract line segments from CSV file
+    std::vector<cv::line_descriptor::KeyLine> lsd, keylsd;
+    int start_index = all_line_segments.current_index;
+    for (int i = start_index; i < all_line_segments.timestamps.size(); ++i) {
+        if (all_line_segments.timestamps[i] > cur_time) {
+            break; // Stop if the segment timestamp exceeds the current time
+        }
+        all_line_segments.current_index++;
+    }
+    lsd = all_line_segments.line_segments_per_timestamp[all_line_segments.current_index - 1];
+    // if (lsd.size() > 0) {
+    //     ROS_INFO("Line segments at t: %f, num of line segments: %d, startPoint: (%f, %f), endPoint: (%f, %f)", cur_time, lsd.size(), lsd[0].startPointX, lsd[0].startPointY, lsd[0].endPointX, lsd[0].endPointY);
+    // }
+
+    // LBD for descriptors to match line segments
+    cv::Mat lbd_descr, keylbd_descr;//产生描述子进行匹配
+    //线特征的描述子仍然采用lsd的
+    cv::Ptr<cv::line_descriptor::BinaryDescriptor> bd_ = cv::line_descriptor::BinaryDescriptor::createBinaryDescriptor();
+    bd_->compute(line_process_blur, lsd, lbd_descr );//由线特征，img_line产生线描述子
+    // ROS_ERROR("number of keyline %d",lsd.size());
+
+
+    for ( int i = 0; i < (int) lsd.size(); i++ )//从lsd中选一些出来成为keylsd
+    {
+        // if( lsd[i].octave == 0 && lsd[i].lineLength >= 60)//如果在第0层。且线的长度大于60为关键线
+        // if( lsd[i].octave == 0 && lsd[i].lineLength >= 10)//如果在第0层。且线的长度大于60为关键线
+        if( lsd[i].octave == 0 && lsd[i].lineLength >= MIN_length)//如果在第0层。且线的长度大于60为关键线
+        {
+            keylsd.push_back(lsd[i]);//就会放入关键线中
+            keylbd_descr.push_back(lbd_descr.row(i));//对应关键线的描述子
+        }
+    }
+
+    this_object->forwframe_->keylsd = keylsd;//当前帧的线特征
+    this_object->forwframe_->lbd_descr = keylbd_descr;//当前帧线特征的描述子
+
+    //ID更新
+    for (size_t i = 0; i < this_object->forwframe_->keylsd.size(); ++i) {
+        if(first_img)//如果是第一帧的话，把id加入
+            this_object->forwframe_->lineID.push_back(this_object->allfeature_cnt++);
+        else//若不是第一帧的话，先赋予-1（后面会进行更新处理）
+            this_object->forwframe_->lineID.push_back(-1);   // give a negative id  新检测的id全部置为-1
+    }
+    
+    //当前已有的关键线的size大于0的时候，就开始进行匹配处理
+    if(this_object->curframe_->keylsd.size() > 0)
+    {
+        std::vector<cv::DMatch> lsd_matches;//匹配器(存放匹配的结果)
+        cv::Ptr<cv::line_descriptor::BinaryDescriptorMatcher> bdm_;//线特征的匹配子
+        bdm_ = cv::line_descriptor::BinaryDescriptorMatcher::createBinaryDescriptorMatcher();//产生描述子匹配器
+        bdm_->match(this_object->forwframe_->lbd_descr, this_object->curframe_->lbd_descr, lsd_matches);//最新的，跟当前已有的进行匹配
+        //注意，此时lsd_matches中的queryIdx指的是forwframe_,trainIdx指的是curframe_,
+
+        std::vector<cv::DMatch> good_matches;//保存匹配效果比较好的
+        // std::vector<cv::line_descriptor::KeyLine> good_Keylines;//匹配效果比较好的线
+        good_matches.clear();
+        for (int i=0; i<lsd_matches.size();i++){
+            if(lsd_matches[i].distance<30){//当匹配的距离少于30认为是比较好的匹配
+            // if(lsd_matches[i].distance<60){//把约束要求降低
+                cv::DMatch mt=lsd_matches[i];
+                cv::line_descriptor::KeyLine line1=this_object->forwframe_->keylsd[mt.queryIdx];//queryIdx指的是forwframe_
+                cv::line_descriptor::KeyLine line2=this_object->curframe_->keylsd[mt.trainIdx];//trainIdx指的是curframe_,
+                cv::Point2f serr = line1.getStartPoint() - line2.getEndPoint();//起始点的误差
+                cv::Point2f eerr = line1.getEndPoint() - line2.getEndPoint();//终止点的误差
+                if((serr.dot(serr) < 200 * 200) && (eerr.dot(eerr) < 200 * 200)&&abs(line1.angle-line2.angle)<0.1){ // 线段在图像里不会跑得特别远
+                // if((serr.dot(serr) < 400 * 400) && (eerr.dot(eerr) < 400 * 400)&&abs(line1.angle-line2.angle)<1){ // 把约束要求降低
+                    good_matches.push_back( lsd_matches[i] );//将匹配结果较好的存放
+                } 
+            }
+        }
+        this_object->rejectWithF_line(this_object->curframe_->keylsd, this_object->forwframe_->keylsd, good_matches);//实际上是对good_matches进行处理
+
+        // if(good_matches.size()!=0)
+            // ROS_ERROR("number of good_matches %d",good_matches.size());
+
+        // vector< int > success_id;//获取成功匹配的id，匹配成功的才会进行id赋值
+        for (int k = 0; k < good_matches.size(); ++k) {
+            cv::DMatch mt = good_matches[k];
+            this_object->forwframe_->lineID[mt.queryIdx] = this_object->curframe_->lineID[mt.trainIdx];//匹配上的id进行赋值,没匹配上的，仍然是-1
+            // success_id.push_back(this_object->curframe_->lineID[mt.trainIdx]);//获取成功匹配的id
+        }
+
+
+        if(SHOW_TRACK)//读入参数是否show跟踪，如果是的话，就运行下面函数，将线特征显示出来！ （并且要不是第一帧）
+        {
+            // FeatureTracker::event_drawTrack_two_line(forwframe_->img.clone(), curframe_->img.clone(), forwframe_->keylsd, curframe_->keylsd, good_matches);//前后帧线特征匹配的结果输出
+            // this_object->event_drawTrack_two_line(this_object->forwframe_->img.clone(), this_object->curframe_->img.clone(), this_object->forwframe_->keylsd, this_object->curframe_->keylsd, good_matches);//只把匹配好的输出
+            this_object->event_drawTrack_two_line(this_object->forwframe_->event_img.clone(), this_object->curframe_->event_img.clone(), this_object->forwframe_->keylsd, this_object->curframe_->keylsd, good_matches);//只把匹配好的输出(画在event mat上)
+            // this_object->event_drawTrack_two_line_all(this_object->forwframe_->img.clone(), this_object->curframe_->img.clone(), this_object->forwframe_->keylsd, keylsd);//全部检测的线画出来
+        }
+
+
+        //将所有的都保存下来
+        vector<cv::line_descriptor::KeyLine> vecLine_tracked;//跟踪上的线
+        // vector<cv::line_descriptor::KeyLine> vecLine_new;//新产生的线
+        vector< int > lineID_tracked;//跟踪上的线的id
+        // vector< int > lineID_new;//新产生的线的id
+        cv::Mat DEscr_tracked;//跟踪上的描述子
+        // cv::Mat Descr_new;//新产生的描述子
+        // 将跟踪的线和没跟踪上的线进行区分
+        int num_new=0;
+        int num_old=0;
+        for (size_t i = 0; i < this_object->forwframe_->keylsd.size(); ++i)//遍历当前所有的线特征（关键的，经过选择后的）
+        {
+            if( this_object->forwframe_->lineID[i] == -1)//没匹配上的
+            {
+                this_object->forwframe_->lineID[i] = this_object->allfeature_cnt++;//对ID进行更新，这部分很重要！
+                // vecLine_new.push_back(this_object->forwframe_->keylsd[i]);
+                // lineID_new.push_back(this_object->forwframe_->lineID[i]);
+                // Descr_new.push_back(this_object->forwframe_->lbd_descr.row( i ) );
+                
+                //将新产生的ID也保存下来
+                vecLine_tracked.push_back(this_object->forwframe_->keylsd[i]);
+                lineID_tracked.push_back(this_object->forwframe_->lineID[i]);
+                DEscr_tracked.push_back(this_object->forwframe_->lbd_descr.row( i ) );
+                num_new++;
+            }else//匹配上的
+            {
+                vecLine_tracked.push_back(this_object->forwframe_->keylsd[i]);
+                lineID_tracked.push_back(this_object->forwframe_->lineID[i]);
+                DEscr_tracked.push_back(this_object->forwframe_->lbd_descr.row( i ) );
+                num_old++;
+            }
+        }
+
+        //将新产生的ID也保存下来
+        // for(int i=0;i<vecLine_new.size();++i){
+        //     vecLine_tracked.push_back(vecLine_new[i]);
+        //     lineID_tracked.push_back(lineID_new[i]);
+        //     DEscr_tracked.push_back(Descr_new.row(i));
+        // }
+
+        //保存下来的存放一下
+        this_object->forwframe_->keylsd = vecLine_tracked;
+        this_object->forwframe_->lineID = lineID_tracked;
+        this_object->forwframe_->lbd_descr = DEscr_tracked;
+
+        if(good_matches.size()!=num_old){
+            ROS_ERROR("number of good_matches %d",good_matches.size());
+            std::cout<<"first_img="<<first_img<<std::endl;
+            ROS_ERROR("number of new %d",num_new);
+            ROS_ERROR("number of old %d",num_old);
+            ROS_ERROR("number of lines %d",vecLine_tracked.size());
+            ROS_ERROR("******************************************");
+        }
+
+        // if(num_old==0){
+        //    ROS_ERROR("num_old==0!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"); 
+        // }
+
+        // ***********************************************************************//
+    }
+    else{//当上一次没有检测新的特征线，会导致当前的特征线为0；那么对最新的检测出的特征线赋值id
+        for(int i=0;i<this_object->forwframe_->keylsd.size();++i){//
+            if(this_object->forwframe_->lineID[i] == -1)
+                this_object->forwframe_->lineID[i] = this_object->allfeature_cnt++;//对ID进行更新
+        }
+
+    }
+
+
+    //将keline格式的线进行转换
+    for (int j = 0; j < this_object->forwframe_->keylsd.size(); ++j){
+        Line l;
+        cv::line_descriptor::KeyLine lsd = this_object->forwframe_->keylsd[j];
+        // l.StartPt = lsd.getStartPoint();
+        // l.EndPt = lsd.getEndPoint();
+        cv::Point2f start_point=lsd.getStartPoint();
+        cv::Point2f end_point= lsd.getEndPoint();
+        //去除失真
+        if(this_object->m_camera){//若不是空的话，就使用
+            l.StartPt=this_object->undistortedPts(start_point,this_object->m_camera);//获得未失真的点，输入的为当前跟踪的点以及相机的参数
+            l.EndPt=this_object->undistortedPts(end_point,this_object->m_camera);//获得未失真的点，输入的为当前跟踪的点以及相机的参数
+        }
+        else{
+            ROS_ERROR("without undistortedPts !!!");
+            l.StartPt=start_point;
+            l.EndPt=end_point;
+        }
+        
+        l.length = lsd.lineLength;
+        this_object->forwframe_->vecLine.push_back(l);
+    }
+
+    // if(this_object->forwframe_->keylsd.size()!=0)//当当前帧检测的线不为0时，才赋值，不然已有的会被清空
+        this_object->curframe_ = this_object->forwframe_;
+
+    // // curframe_->vecLine
+    // this_object->curframe_->vecLine=this_object->undistortedLineEndPoints();//去除失真(但每次使用就会存在内存益处的问题)
+    mutex_threads.unlock();
+}
+
 void process_pointfeature(FeatureTracker *this_object,const cv::Mat time_surface, const dvs_msgs::EventArray &last_event, const cv::Mat event_mat)
 {
     // forw_pts.clear();//光流检测的特征点
@@ -1255,9 +1491,18 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
 
 
     //处理线特征
-    std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat);//img_line就是time_surface
-    if (process_linefeature_thread.joinable())
-        process_linefeature_thread.detach();
+    if (LINE_SEGMENTS_CSV == "") {
+        std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat);//img_line就是time_surface
+        if (process_linefeature_thread.joinable())
+            process_linefeature_thread.detach();
+    }
+    else {
+        // 从csv文件中读取线特征
+        double cur_time_ros = cur_time - ROSBAG_START_TIME;
+        std::thread process_linefeature_from_csv_thread(process_linefeature_from_csv,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
+        if (process_linefeature_from_csv_thread.joinable())
+            process_linefeature_from_csv_thread.detach();
+    }
 
     
     if (prev_pts.size() > 0)////若上一帧的特征点大于0则实行光流跟踪
@@ -2219,4 +2464,64 @@ double FeatureTracker::distance(cv::Point2f &pt1, cv::Point2f &pt2)
     double dx = pt1.x - pt2.x;
     double dy = pt1.y - pt2.y;
     return sqrt(dx * dx + dy * dy);
+}
+
+LoadedLineSegments all_line_segments;
+LoadedLineSegments loadLineSegmentsFromCSV(const std::string &filename) {
+    LoadedLineSegments lineSegments;
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        throw std::runtime_error("File open error");
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::istringstream ss(line);
+        std::string token;
+        std::vector<double> values;
+
+        while (std::getline(ss, token, ',')) {
+            values.push_back(std::stod(token));
+        }
+
+        // Record timestamp
+        double timestamp = values[0];
+        lineSegments.timestamps.push_back(timestamp);
+
+        // Record line segments
+        std::vector<cv::line_descriptor::KeyLine> line_segments;
+        int class_id = 0;
+        for (size_t i = 1; i + 3 < values.size(); i += 4) {
+            cv::line_descriptor::KeyLine kl;
+            if (values[i] < values[i + 2]) {
+                kl.startPointX = values[i];
+                kl.startPointY = values[i + 1];
+                kl.endPointX = values[i + 2];
+                kl.endPointY = values[i + 3];
+            } else {
+                kl.startPointX = values[i + 2];
+                kl.startPointY = values[i + 3];
+                kl.endPointX = values[i];
+                kl.endPointY = values[i + 1];
+            }
+            kl.angle = atan2(kl.endPointY - kl.startPointY, kl.endPointX - kl.startPointX);
+            kl.class_id = class_id++;
+            kl.octave = 0;
+            kl.pt = cv::Point2f((kl.startPointX + kl.endPointX) / 2.0f, (kl.startPointY + kl.endPointY) / 2.0f);
+            kl.lineLength = sqrt(pow(kl.endPointX - kl.startPointX, 2) + pow(kl.endPointY - kl.startPointY, 2));
+            kl.numOfPixels = std::ceil(kl.lineLength);
+            kl.response = 1.0f; // Placeholder value
+            kl.size = 1.0f;     // Placeholder value
+            kl.sPointInOctaveX = kl.startPointX;
+            kl.sPointInOctaveY = kl.startPointY;
+            kl.ePointInOctaveX = kl.endPointX;
+            kl.ePointInOctaveY = kl.endPointY;
+            line_segments.push_back(kl);
+        }
+        lineSegments.line_segments_per_timestamp.push_back(line_segments);
+    }
+
+    file.close();
+    return lineSegments;
 }

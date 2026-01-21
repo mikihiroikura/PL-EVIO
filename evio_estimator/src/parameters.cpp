@@ -80,20 +80,20 @@ void readParameters(ros::NodeHandle &n)
     FileSystemHelper::createDirectoryIfNotExists(OUTPUT_PATH.c_str());//如果不存在就重新构建
 
     std::ofstream fout(VINS_RESULT_PATH, std::ios::out);
-    fout.setf(std::ios::fixed, std::ios::floatfield);
-    fout.precision(0);
-    fout << "time" << ",";
-    fout.precision(5);
-    fout << "x" << ","
-            << "y" << ","
-            << "z" << ","
-            << "qw" << ","
-            << "qx" << ","
-            << "qy" << ","
-            << "qz" << ","
-            << "vx" << ","
-            << "vy" << ","
-            << "vz" << "," << std::endl;
+    // fout.setf(std::ios::fixed, std::ios::floatfield);
+    // fout.precision(0);
+    // fout << "time" << ",";
+    // fout.precision(5);
+    // fout << "x" << ","
+    //         << "y" << ","
+    //         << "z" << ","
+    //         << "qw" << ","
+    //         << "qx" << ","
+    //         << "qy" << ","
+    //         << "qz" << ","
+    //         << "vx" << ","
+    //         << "vy" << ","
+    //         << "vz" << "," << std::endl;
     fout.close();
 
 

@@ -1,6 +1,6 @@
 <launch>
 <!-- 注意fpv数据集是有不同的参数的请选择适当的参数 -->
-    <arg name="config_path" default = "$(find feature_tracker)/../config/evio_davis346/davis346.yaml" />
+    <arg name="config_path" default = "$(find feature_tracker)/../config/mono_davis346/davis346_uzh_fpv.yaml" />
     <arg name="vins_path" default = "$(find feature_tracker)/../config/../" />
     
 <!-- 要根据需求输出log（output） -->
@@ -19,13 +19,13 @@
     </node>
 
 <!-- *********************************   VIO估计器应该要保证一直开着   *********************************     -->
-    <node name="evio_estimator" pkg="evio_estimator" type="evio_estimator" output="screen" launch-prefix="gnome-terminal -x">
+    <node name="evio_estimator" pkg="evio_estimator" type="evio_estimator" output="screen">
        <param name="config_file" type="string" value="$(arg config_path)" />
        <param name="vins_folder" type="string" value="$(arg vins_path)" />
     </node>
 
 <!-- *********************************   pose graph    *********************************     -->
-    <node name="pose_graph" pkg="pose_graph" type="pose_graph" output="screen" launch-prefix="gnome-terminal -x">
+    <node name="pose_graph" pkg="pose_graph" type="pose_graph" output="screen">
         <param name="config_file" type="string" value="$(arg config_path)" />
         <param name="visualization_shift_x" type="int" value="0" />
         <param name="visualization_shift_y" type="int" value="0" />
@@ -34,6 +34,6 @@
     </node>
 
 <!-- *********************************   rviz可视化   *********************************     -->
-   <node name="rvizvisualisation" pkg="rviz" type="rviz" outputs="log" args="-d $(find evio_estimator)/../config/pl_eio.rviz" />
+   <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find evio_estimator)/../config/pl_eio.rviz" />
 
 </launch>

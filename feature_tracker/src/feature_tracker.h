@@ -75,6 +75,15 @@ struct Line
 	int colorIdx;
 };
 
+struct LoadedLineSegments {
+    std::vector<std::vector<cv::line_descriptor::KeyLine>> line_segments_per_timestamp;
+    std::vector<double> timestamps;
+    int current_index = 0;
+};
+
+extern LoadedLineSegments all_line_segments;
+LoadedLineSegments loadLineSegmentsFromCSV(const std::string &filename);
+
 class FrameLines//每一帧
 {
 public:

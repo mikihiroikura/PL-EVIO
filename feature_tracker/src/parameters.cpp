@@ -6,6 +6,8 @@ std::string IMAGE1_TOPIC;//双目时，左相机的topic
 std::string IMAGE2_TOPIC; //双目时，右相机的topic
 std::string EVENT_TOPIC;//事件的话题
 std::string IMU_TOPIC;
+std::string LINE_SEGMENTS_CSV = "";
+double ROSBAG_START_TIME;
 std::vector<std::string> CAM_NAMES;//导入camera 参数
 std::string FISHEYE_MASK;
 int use_stereo=0;//是否采用双目
@@ -34,6 +36,7 @@ int ROW;//图片的height
 int COL;//图片的width
 int FOCAL_LENGTH;
 int FISHEYE;
+int USE_ONLY_ENDPOINTS=0; // Flag to use only endpoints of line segments, discard other features calculated from LSD
 bool PUB_THIS_FRAME;
 int Num_of_thread;//处理大量event数组的时候采用多少个线程
 
@@ -87,6 +90,11 @@ void readParameters(ros::NodeHandle &n)
     fsSettings["image2_topic"] >> IMAGE2_TOPIC; 
     fsSettings["event_topic"] >> EVENT_TOPIC;//事件话题的读入
     fsSettings["imu_topic"] >> IMU_TOPIC;
+    fsSettings["line_segments_csv"] >> LINE_SEGMENTS_CSV;
+    fsSettings["rosbag_start_time"] >> ROSBAG_START_TIME;
+    fsSettings["use_only_endpoints"] >> USE_ONLY_ENDPOINTS;
+    if (USE_ONLY_ENDPOINTS)
+        ROS_INFO("Only use line segment endpoints for feature tracking.");
     MAX_CNT = fsSettings["max_cnt"];
     MIN_DIST = fsSettings["min_dist"];
     MIN_DIST_IMG = fsSettings["min_dist_img"];////图像特征的距离
