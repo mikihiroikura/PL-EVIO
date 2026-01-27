@@ -704,6 +704,11 @@ cv::Mat FeatureTracker::getTrackImage_two_line()
     return imTrack_two_line;
 }
 
+cv::Mat FeatureTracker::getTrackImage_line()
+{
+    return imTrack_line;
+}
+
 void multi_thread_create_SAE(std::vector<dvs_msgs::Event> e, int beginIndex, int length){
     for(int i=beginIndex;i<beginIndex+length;i++){
         detector.createSAE(e[i].ts.toSec(),e[i].x,e[i].y,e[i].polarity);
@@ -727,7 +732,7 @@ void multi_thread_create_SAE_motion(std::vector<dvs_msgs::Event> e, int beginInd
 }
 
 
-void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bool first_img, const cv::Mat event_mat)
+void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bool first_img, const cv::Mat event_mat, double cur_time)
 {
     mutex_threads.lock();
 
@@ -871,7 +876,9 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
         {
             // FeatureTracker::event_drawTrack_two_line(forwframe_->img.clone(), curframe_->img.clone(), forwframe_->keylsd, curframe_->keylsd, good_matches);//前后帧线特征匹配的结果输出
             // this_object->event_drawTrack_two_line(this_object->forwframe_->img.clone(), this_object->curframe_->img.clone(), this_object->forwframe_->keylsd, this_object->curframe_->keylsd, good_matches);//只把匹配好的输出
+            line_results_file << cur_time << ",";
             this_object->event_drawTrack_two_line(this_object->forwframe_->event_img.clone(), this_object->curframe_->event_img.clone(), this_object->forwframe_->keylsd, this_object->curframe_->keylsd, good_matches);//只把匹配好的输出(画在event mat上)
+            line_results_file << std::endl;
             // this_object->event_drawTrack_two_line_all(this_object->forwframe_->img.clone(), this_object->curframe_->img.clone(), this_object->forwframe_->keylsd, keylsd);//全部检测的线画出来
         }
 
@@ -1492,7 +1499,8 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
 
     //处理线特征
     if (LINE_SEGMENTS_CSV == "") {
-        std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat);//img_line就是time_surface
+        double cur_time_ros = cur_time - ROSBAG_START_TIME;
+        std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
         if (process_linefeature_thread.joinable())
             process_linefeature_thread.detach();
     }
@@ -1723,7 +1731,8 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
 
 
     //处理线特征
-    std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat);//img_line就是time_surface
+    double cur_time_ros = cur_time - ROSBAG_START_TIME;
+    std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
     if (process_linefeature_thread.joinable())
         process_linefeature_thread.detach();
 
@@ -2372,6 +2381,7 @@ void FeatureTracker::event_drawTrack_two_line(const cv::Mat imageMat1, const cv:
     }
 
     cv::hconcat(img1, img2, imTrack_two_line);//将两张图像水平接起来
+    imTrack_line = cv::Mat::zeros(img2.size(), img2.type());
 
     for (int k = 0; k < good_matches.size(); ++k) {
 
@@ -2393,10 +2403,18 @@ void FeatureTracker::event_drawTrack_two_line(const cv::Mat imageMat1, const cv:
         // // 下面是画点
         // cv::circle(img2, startPoint2, MIN_DIST/2, cv::Scalar(0, 255,255), -1);//起点
         // cv::circle(img2, endPoint2, MIN_DIST/2, cv::Scalar(0, 255,255), -1);//终点
-        
+
         //用箭头可视化一一对应的关系
         cv::arrowedLine(imTrack_two_line, startPoint, startPoint2, cv::Scalar(0, 255, 0), 1, 8, 0, 0.02);//绿色线
         cv::arrowedLine(imTrack_two_line, endPoint, endPoint2, cv::Scalar(0, 255, 0), 1, 8, 0, 0.02);//绿色线
+    }
+
+    // Draw all extracted line segments
+    for (const auto& line : octave0_2) {
+        cv::Point startPoint(int(line.startPointX), int(line.startPointY));
+        cv::Point endPoint(int(line.endPointX), int(line.endPointY));
+        cv::line(imTrack_line, startPoint, endPoint, cv::Scalar(0, 255, 85), 2);// Line segments
+        line_results_file << startPoint.x << "," << startPoint.y << "," << endPoint.x << "," << endPoint.y << ",";
     }
 
     // cv::hconcat(img1, img2, imTrack_two_line);//将两张图像水平接起来
@@ -2492,32 +2510,63 @@ LoadedLineSegments loadLineSegmentsFromCSV(const std::string &filename) {
         // Record line segments
         std::vector<cv::line_descriptor::KeyLine> line_segments;
         int class_id = 0;
-        for (size_t i = 1; i + 3 < values.size(); i += 4) {
-            cv::line_descriptor::KeyLine kl;
-            if (values[i] < values[i + 2]) {
-                kl.startPointX = values[i];
-                kl.startPointY = values[i + 1];
-                kl.endPointX = values[i + 2];
-                kl.endPointY = values[i + 3];
-            } else {
-                kl.startPointX = values[i + 2];
-                kl.startPointY = values[i + 3];
-                kl.endPointX = values[i];
-                kl.endPointY = values[i + 1];
+        if (LINE_SEGMENTS_METHOD == "" || LINE_SEGMENTS_METHOD == "LEDGE" || LINE_SEGMENTS_METHOD == "Powerline" || LINE_SEGMENTS_METHOD == "FE-LSD") {
+            for (size_t i = 1; i + 3 < values.size(); i += 4) {
+                cv::line_descriptor::KeyLine kl;
+                if (values[i] < values[i + 2]) {
+                    kl.startPointX = values[i];
+                    kl.startPointY = values[i + 1];
+                    kl.endPointX = values[i + 2];
+                    kl.endPointY = values[i + 3];
+                } else {
+                    kl.startPointX = values[i + 2];
+                    kl.startPointY = values[i + 3];
+                    kl.endPointX = values[i];
+                    kl.endPointY = values[i + 1];
+                }
+                kl.angle = atan2(kl.endPointY - kl.startPointY, kl.endPointX - kl.startPointX);
+                kl.class_id = class_id++;
+                kl.octave = 0;
+                kl.pt = cv::Point2f((kl.startPointX + kl.endPointX) / 2.0f, (kl.startPointY + kl.endPointY) / 2.0f);
+                kl.lineLength = sqrt(pow(kl.endPointX - kl.startPointX, 2) + pow(kl.endPointY - kl.startPointY, 2));
+                kl.numOfPixels = std::ceil(kl.lineLength);
+                kl.response = 1.0f; // Placeholder value
+                kl.size = 1.0f;     // Placeholder value
+                kl.sPointInOctaveX = kl.startPointX;
+                kl.sPointInOctaveY = kl.startPointY;
+                kl.ePointInOctaveX = kl.endPointX;
+                kl.ePointInOctaveY = kl.endPointY;
+                line_segments.push_back(kl);
             }
-            kl.angle = atan2(kl.endPointY - kl.startPointY, kl.endPointX - kl.startPointX);
-            kl.class_id = class_id++;
-            kl.octave = 0;
-            kl.pt = cv::Point2f((kl.startPointX + kl.endPointX) / 2.0f, (kl.startPointY + kl.endPointY) / 2.0f);
-            kl.lineLength = sqrt(pow(kl.endPointX - kl.startPointX, 2) + pow(kl.endPointY - kl.startPointY, 2));
-            kl.numOfPixels = std::ceil(kl.lineLength);
-            kl.response = 1.0f; // Placeholder value
-            kl.size = 1.0f;     // Placeholder value
-            kl.sPointInOctaveX = kl.startPointX;
-            kl.sPointInOctaveY = kl.startPointY;
-            kl.ePointInOctaveX = kl.endPointX;
-            kl.ePointInOctaveY = kl.endPointY;
-            line_segments.push_back(kl);
+        }
+        else if (LINE_SEGMENTS_METHOD == "C2F-EFIO") {
+            for (size_t i = 1; i + 4 < values.size(); i += 5) {
+                cv::line_descriptor::KeyLine kl;
+                if (values[i + 1] < values[i + 3]) {
+                    kl.startPointX = values[i + 1];
+                    kl.startPointY = values[i + 2];
+                    kl.endPointX = values[i + 3];
+                    kl.endPointY = values[i + 4];
+                } else {
+                    kl.startPointX = values[i + 3];
+                    kl.startPointY = values[i + 4];
+                    kl.endPointX = values[i + 1];
+                    kl.endPointY = values[i + 2];
+                }
+                kl.angle = atan2(kl.endPointY - kl.startPointY, kl.endPointX - kl.startPointX);
+                kl.class_id = class_id++;
+                kl.octave = 0;
+                kl.pt = cv::Point2f((kl.startPointX + kl.endPointX) / 2.0f, (kl.startPointY + kl.endPointY) / 2.0f);
+                kl.lineLength = sqrt(pow(kl.endPointX - kl.startPointX, 2) + pow(kl.endPointY - kl.startPointY, 2));
+                kl.numOfPixels = std::ceil(kl.lineLength);
+                kl.response = 1.0f; // Placeholder value
+                kl.size = 1.0f;     // Placeholder value
+                kl.sPointInOctaveX = kl.startPointX;
+                kl.sPointInOctaveY = kl.startPointY;
+                kl.ePointInOctaveX = kl.endPointX;
+                kl.ePointInOctaveY = kl.endPointY;
+                line_segments.push_back(kl);
+            }
         }
         lineSegments.line_segments_per_timestamp.push_back(line_segments);
     }
@@ -2525,3 +2574,5 @@ LoadedLineSegments loadLineSegmentsFromCSV(const std::string &filename) {
     file.close();
     return lineSegments;
 }
+
+std::ofstream line_results_file;

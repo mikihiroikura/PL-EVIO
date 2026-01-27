@@ -27,7 +27,7 @@ extern ros::Publisher pub_time_surface;
 extern ros::Publisher pub_restart;
 extern ros::Publisher corner_pub;//把当前事件帧的所有feature发布出去
 
-extern ros::Publisher pub_match_two_line,pub_feature_line;//线特征相关的
+extern ros::Publisher pub_match_two_line,pub_feature_line,pub_feature_line_img;//线特征相关的
 
 void registerPub(ros::NodeHandle &n);
 void pubLoopImage(const cv::Mat &imgTrack, const double t);

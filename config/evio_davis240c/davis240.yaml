@@ -117,6 +117,7 @@ save_loop_match: 0              #
 
 ###########################################################################################################################################################
 # line segments csv file
-# line_segments_csv: "/data/LineSegments/LEDGE/dynamic_6dof/ledge_par/a10_th020/ledge_refined_lsg.csv"
-# rosbag_start_time: 1473347517.06
+# line_segments_csv: "/data/LineSegments/LEDGE/boxes_6dof/ledge_par/a10_th020/ledge-refined_lsg.csv"
+# line_segments_method: "LEDGE"
+rosbag_start_time: 1473347517.06
 use_only_endpoints: 1

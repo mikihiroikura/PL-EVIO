@@ -17,6 +17,7 @@ extern std::string IMAGE1_TOPIC;//双目时，左相机的topic
 extern std::string IMAGE2_TOPIC; //双目时，右相机的topic
 extern std::string EVENT_TOPIC;//事件的话题
 extern std::string LINE_SEGMENTS_CSV;
+extern std::string LINE_SEGMENTS_METHOD;
 extern double ROSBAG_START_TIME;
 extern int USE_ONLY_ENDPOINTS; // Flag to use only endpoints of line segments, discard other features calculated from LSD
 extern std::string IMU_TOPIC;

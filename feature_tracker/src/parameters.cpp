@@ -7,6 +7,7 @@ std::string IMAGE2_TOPIC; //双目时，右相机的topic
 std::string EVENT_TOPIC;//事件的话题
 std::string IMU_TOPIC;
 std::string LINE_SEGMENTS_CSV = "";
+std::string LINE_SEGMENTS_METHOD = "";
 double ROSBAG_START_TIME;
 std::vector<std::string> CAM_NAMES;//导入camera 参数
 std::string FISHEYE_MASK;
@@ -91,6 +92,7 @@ void readParameters(ros::NodeHandle &n)
     fsSettings["event_topic"] >> EVENT_TOPIC;//事件话题的读入
     fsSettings["imu_topic"] >> IMU_TOPIC;
     fsSettings["line_segments_csv"] >> LINE_SEGMENTS_CSV;
+    fsSettings["line_segments_method"] >> LINE_SEGMENTS_METHOD;
     fsSettings["rosbag_start_time"] >> ROSBAG_START_TIME;
     fsSettings["use_only_endpoints"] >> USE_ONLY_ENDPOINTS;
     if (USE_ONLY_ENDPOINTS)

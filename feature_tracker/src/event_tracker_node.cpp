@@ -45,7 +45,7 @@ std::mutex m_buf_feature;
 bool detector_666_flag=false;
 
 
-void pubTrackImage(const cv::Mat &imgTrack, const cv::Mat &imgTrack_two, const cv::Mat &imgTrack_two_line, const cv::Mat &time_surface_map, const double t)
+void pubTrackImage(const cv::Mat &imgTrack, const cv::Mat &imgTrack_two, const cv::Mat &imgTrack_two_line, const cv::Mat &imgTrack_line, const cv::Mat &time_surface_map, const double t)
 {//发布跟踪的image
     std_msgs::Header header;
     header.frame_id = "world";
@@ -69,6 +69,8 @@ void pubTrackImage(const cv::Mat &imgTrack, const cv::Mat &imgTrack_two, const c
     {
         sensor_msgs::ImagePtr imgTrackMsg_two_line = cv_bridge::CvImage(header, "bgr8", imgTrack_two_line).toImageMsg();
         pub_match_two_line.publish(imgTrackMsg_two_line);//可视化两帧的线特征匹配的效果
+        sensor_msgs::ImagePtr imgTrackMsg_line = cv_bridge::CvImage(header, "bgr8", imgTrack_line).toImageMsg();
+        pub_feature_line_img.publish(imgTrackMsg_line);//可视化线特征的效果
 
         // trackerData[0].save_line_tracking(imgTrack_two_line,t);
     }
@@ -359,8 +361,9 @@ void eventsCallback(const dvs_msgs::EventArray &event_msg)//img_msg没有了
             cv::Mat imageTrack=trackerData[0].getTrackImage();
             cv::Mat imgTrack_two =trackerData[0].getTrackImage_two();
             cv::Mat imgTrack_two_line =trackerData[0].getTrackImage_two_line();//线特征的匹配结果
+            cv::Mat imgTrack_line =trackerData[0].getTrackImage_line();//线特征的结果
             cv::Mat Time_surface_map =trackerData[0].gettimesurface();
-            pubTrackImage(imageTrack,imgTrack_two,imgTrack_two_line,Time_surface_map,last_image_time);
+            pubTrackImage(imageTrack,imgTrack_two,imgTrack_two_line,imgTrack_line,Time_surface_map,last_image_time);
         }
 
     }
@@ -376,6 +379,7 @@ int main(int argc, char **argv)
     ros::NodeHandle n("~");// 声明一个句柄，～代表这个节点的命名空间
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info); // 设置ros log级别
     readParameters(n); // 读取配置文件
+    line_results_file.open("/home/plevio/lines.csv",std::ios::out);
 
     // If LINE_SEGMENTS_CSV is not empty, initialize the line detector with the CSV file
     if (LINE_SEGMENTS_CSV != "") {
@@ -389,6 +393,9 @@ int main(int argc, char **argv)
                      test_line.angle, test_line.class_id, test_line.endPointX, test_line.endPointY, test_line.startPointX, test_line.startPointY,
                      test_line.size, test_line.numOfPixels, test_line.lineLength, test_line.octave, test_line.sPointInOctaveX, test_line.response);
         }
+    }
+    if (LINE_SEGMENTS_METHOD != "") {
+        ROS_INFO("Line segments method set to: %s", LINE_SEGMENTS_METHOD.c_str());
     }
 
     for (int i = 0; i < NUM_OF_CAM; i++)
@@ -405,5 +412,6 @@ int main(int argc, char **argv)
     // std::thread sync_thread{sync_process_event_corner_multi_thread};//多线程来提取特征点
 
     ros::spin(); // spin代表这个节点开始循环查询topic是否接收
+    line_results_file.close();
     return 0;
 }

@@ -1,0 +1,17 @@
+<launch>
+    <arg name="config_path" default = "$(find feature_tracker)/../config/evio_davis240c/davis240.yaml" />
+    <arg name="vins_path" default = "$(find feature_tracker)/../config/../" />
+    <arg name="bag_file" default="/data/rosbag/ICCV2025/MVSEC/indoor_flying1_data.bag" />
+    <arg name="play_speed" default="0.2" />
+    <arg name="start_time" default="0" />
+    <arg name="duration" default="10" />
+
+    <!-- 检测事件特征 -->
+    <node name="feature_tracker" pkg="feature_tracker" type="feature_tracker" output="screen">
+        <param name="config_file" type="string" value="$(arg config_path)" />
+        <param name="vins_folder" type="string" value="$(arg vins_path)" />
+    </node>
+
+    <node name="rosbag_play" pkg="rosbag" type="play" args="-r $(arg play_speed) $(arg bag_file) --start=$(arg start_time) --duration=$(arg duration)" output="screen" required="true" />
+
+</launch>

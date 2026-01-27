@@ -11,7 +11,7 @@ ros::Publisher pub_img,pub_match, pub_match_two;
 ros::Publisher pub_time_surface;
 ros::Publisher pub_restart;
 ros::Publisher corner_pub;//把当前事件帧的所有feature发布出去
-ros::Publisher pub_match_two_line,pub_feature_line;//线特征相关的
+ros::Publisher pub_match_two_line,pub_feature_line,pub_feature_line_img;//线特征相关的
 
 void registerPub(ros::NodeHandle &n)
 {
@@ -26,6 +26,7 @@ void registerPub(ros::NodeHandle &n)
     pub_loop_image = n.advertise<sensor_msgs::Image>("loop_image", 1000);//发布timesurface
 
     pub_match_two_line=n.advertise<sensor_msgs::Image>("linefeature_img_two",1000);//发布两张图片叠在一起的线特征matching的结果
+    pub_feature_line_img = n.advertise<sensor_msgs::Image>("linefeature_img",1000);
     pub_feature_line = n.advertise<sensor_msgs::PointCloud>("linefeature",     1000);//发布线feature(当前帧的特征)
 
 }
