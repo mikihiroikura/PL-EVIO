@@ -764,7 +764,13 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
     // opts.min_length=MIN_length;
 
     std::vector<cv::line_descriptor::KeyLine> lsd, keylsd;//产生的线
+    TicToc t_lsd;
     lsd_->detect(line_process_blur, lsd, 1.2, 1, opts);//检测线段(从time surface上提取)
+    if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time && cur_time < CALC_FPS_END_TIME) {
+        this_object->process_cnt_lsd++;
+        this_object->sum_time_lsd+=t_lsd.toc();
+        ROS_INFO("Average time cost of creating LSD: %f", this_object->sum_time_lsd/this_object->process_cnt_lsd);
+    }
     // （另外两个参数是）
     // detect_scale	计算当前图像的金字塔下采样倍率，默认1.2，即下采样到原来1/1.2
     // detect_numOctaves	计算当前图像需要提取几层高斯金字塔，默认值1
@@ -807,7 +813,12 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
     cv::Mat lbd_descr, keylbd_descr;//产生描述子进行匹配
     //线特征的描述子仍然采用lsd的
     cv::Ptr<cv::line_descriptor::BinaryDescriptor> bd_ = cv::line_descriptor::BinaryDescriptor::createBinaryDescriptor();
+    TicToc t_lbd;
     bd_->compute(line_process_blur, lsd, lbd_descr );//由线特征，img_line产生线描述子
+    if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time && cur_time < CALC_FPS_END_TIME) {
+        this_object->sum_time_lbd+=t_lbd.toc();
+        ROS_INFO("Average time cost of creating LBD: %f", this_object->sum_time_lbd/this_object->process_cnt_lsd);
+    }
     // ROS_ERROR("number of keyline %d",lsd.size());
 
 
@@ -839,6 +850,7 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
         std::vector<cv::DMatch> lsd_matches;//匹配器(存放匹配的结果)
         cv::Ptr<cv::line_descriptor::BinaryDescriptorMatcher> bdm_;//线特征的匹配子
         bdm_ = cv::line_descriptor::BinaryDescriptorMatcher::createBinaryDescriptorMatcher();//产生描述子匹配器
+        TicToc t_match;
         bdm_->match(this_object->forwframe_->lbd_descr, this_object->curframe_->lbd_descr, lsd_matches);//最新的，跟当前已有的进行匹配
         //注意，此时lsd_matches中的queryIdx指的是forwframe_,trainIdx指的是curframe_,
 
@@ -858,6 +870,10 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
                     good_matches.push_back( lsd_matches[i] );//将匹配结果较好的存放
                 } 
             }
+        }
+        if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time && cur_time < CALC_FPS_END_TIME) {
+            this_object->sum_time_match+=t_match.toc();
+            ROS_INFO("Average time cost of line matching: %f", this_object->sum_time_match/this_object->process_cnt_lsd);
         }
         this_object->rejectWithF_line(this_object->curframe_->keylsd, this_object->forwframe_->keylsd, good_matches);//实际上是对good_matches进行处理
 
@@ -1424,6 +1440,7 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
     cv::Mat img;
     // TicToc t_r;
     cur_time = _cur_time;//当前的时间
+    double cur_time_ros = cur_time - ROSBAG_START_TIME;
 
     //基于event生成SAE mat（同时提取time surface）
     //初始化角点检测器
@@ -1433,18 +1450,26 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
     }
 
     detector.cur_event_mat=cv::Mat::zeros(cv::Size(COL, ROW), CV_8UC3);//先清空一下
-    // TicToc t_create_sae;
+    TicToc t_create_sae;
     // 把所有的event放入SAE中(好像采用多线程，帮助不大)
     for (const dvs_msgs::Event& e:last_event.events){
         detector.createSAE(e.ts.toSec(), e.x, e.y, e.polarity);
     }
-    // ROS_INFO("time cost of creating SAE: %f", t_create_sae.toc());
+    if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time_ros && cur_time_ros < CALC_FPS_END_TIME) {
+        process_cnt++;
+        sum_time_create_sae+=t_create_sae.toc();
+        ROS_INFO("Average time cost of creating SAE: %f", sum_time_create_sae/process_cnt);
+    }
     cv::Mat event_mat=detector.cur_event_mat;//获得当前event的mat矩阵
     
 
-    // TicToc t_ts;
+    TicToc t_ts;
     const cv::Mat time_surface_map=detector.SAEtoTimeSurface(cur_time);//产生的time surface（用sae_）特征点是基于SAE产生的，故此跟踪也应该采用SAE
-    // ROS_INFO("time cost of creating time surface: %f", t_ts.toc());
+    if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time_ros && cur_time_ros < CALC_FPS_END_TIME) {
+        sum_time_create_ts+=t_ts.toc();
+        ROS_INFO("Average time cost of creating time surface: %f", sum_time_create_ts/process_cnt);
+    }
+
 
     //用于回环检测的image
     // Image_loop=detector.SAE_toTimeSurface_withoutP_multi_thread(cur_time);//最原始的，不带极性的归一化TS
@@ -1457,11 +1482,14 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
 
     if (EQUALIZE)//均衡处理
     {  // 
-        // TicToc t_c;
+        TicToc t_c;
         cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();//默认参数
         clahe->apply(time_surface, img);
         cv::normalize(img, img, 0, 255, CV_MINMAX);
-        // ROS_DEBUG("CLAHE costs: %fms", t_c.toc());
+        if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time_ros && cur_time_ros < CALC_FPS_END_TIME) {
+            sum_time_clahe+=t_c.toc();
+            ROS_INFO("Average time cost of CLAHE: %f", sum_time_clahe/process_cnt);
+        }
     }
     else
         img = time_surface;//将time surface赋给img
@@ -1499,14 +1527,12 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
 
     //处理线特征
     if (LINE_SEGMENTS_CSV == "") {
-        double cur_time_ros = cur_time - ROSBAG_START_TIME;
         std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
         if (process_linefeature_thread.joinable())
             process_linefeature_thread.detach();
     }
     else {
         // 从csv文件中读取线特征
-        double cur_time_ros = cur_time - ROSBAG_START_TIME;
         std::thread process_linefeature_from_csv_thread(process_linefeature_from_csv,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
         if (process_linefeature_from_csv_thread.joinable())
             process_linefeature_from_csv_thread.detach();
