@@ -9,6 +9,8 @@ std::string IMU_TOPIC;
 std::string LINE_SEGMENTS_CSV = "";
 std::string LINE_SEGMENTS_METHOD = "";
 double ROSBAG_START_TIME;
+double CALC_FPS_START_TIME=-1.0;
+double CALC_FPS_END_TIME=-1.0;
 std::vector<std::string> CAM_NAMES;//导入camera 参数
 std::string FISHEYE_MASK;
 int use_stereo=0;//是否采用双目
@@ -95,8 +97,11 @@ void readParameters(ros::NodeHandle &n)
     fsSettings["line_segments_method"] >> LINE_SEGMENTS_METHOD;
     fsSettings["rosbag_start_time"] >> ROSBAG_START_TIME;
     fsSettings["use_only_endpoints"] >> USE_ONLY_ENDPOINTS;
+    fsSettings["calc_fps_start_time"] >> CALC_FPS_START_TIME;
+    fsSettings["calc_fps_end_time"] >> CALC_FPS_END_TIME;
     if (USE_ONLY_ENDPOINTS)
         ROS_INFO("Only use line segment endpoints for feature tracking.");
+    ROS_INFO("FPS calculation from %f to %f seconds.", CALC_FPS_START_TIME, CALC_FPS_END_TIME);
     MAX_CNT = fsSettings["max_cnt"];
     MIN_DIST = fsSettings["min_dist"];
     MIN_DIST_IMG = fsSettings["min_dist_img"];////图像特征的距离

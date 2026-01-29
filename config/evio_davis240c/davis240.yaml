@@ -121,3 +121,5 @@ save_loop_match: 0              #
 # line_segments_method: "LEDGE"
 rosbag_start_time: 1473347517.06
 use_only_endpoints: 1
+calc_fps_start_time: 5.0
+calc_fps_end_time: 10.0

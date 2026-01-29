@@ -196,6 +196,14 @@ class FeatureTracker
     double fx,fy,cx,cy;
     double cur_time;//当前的时间
     double prev_time;
+    double sum_time_create_sae=0.0;
+    double sum_time_create_ts=0.0;
+    double sum_time_clahe=0.0;
+    double sum_time_lsd=0.0;
+    double sum_time_lbd=0.0;
+    double sum_time_match=0.0;
+    int process_cnt=0;
+    int process_cnt_lsd=0;
 
   //跟踪的结果图像
     cv::Mat imTrack;//用于跟踪
