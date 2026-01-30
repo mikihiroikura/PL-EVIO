@@ -84,6 +84,7 @@ struct LoadedLineSegments {
 extern LoadedLineSegments all_line_segments;
 LoadedLineSegments loadLineSegmentsFromCSV(const std::string &filename);
 extern std::ofstream line_results_file;
+extern std::ofstream line_ids_file;
 
 class FrameLines//每一帧
 {

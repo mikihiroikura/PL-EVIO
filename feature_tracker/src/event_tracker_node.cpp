@@ -380,6 +380,7 @@ int main(int argc, char **argv)
     ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Info); // 设置ros log级别
     readParameters(n); // 读取配置文件
     line_results_file.open("/home/plevio/lines.csv",std::ios::out);
+    line_ids_file.open("/home/plevio/line_ids.csv",std::ios::out);
 
     // If LINE_SEGMENTS_CSV is not empty, initialize the line detector with the CSV file
     if (LINE_SEGMENTS_CSV != "") {
@@ -413,5 +414,6 @@ int main(int argc, char **argv)
 
     ros::spin(); // spin代表这个节点开始循环查询topic是否接收
     line_results_file.close();
+    line_ids_file.close();
     return 0;
 }
