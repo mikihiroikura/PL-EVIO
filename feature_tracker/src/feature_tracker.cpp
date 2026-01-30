@@ -939,6 +939,13 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
         //     DEscr_tracked.push_back(Descr_new.row(i));
         // }
 
+        // Record line IDs into CSV
+        line_ids_file << cur_time << ",";
+        for (size_t i = 0; i < lineID_tracked.size(); ++i) {
+            line_ids_file << lineID_tracked[i] << ",";
+        }
+        line_ids_file << std::endl;
+
         //保存下来的存放一下
         this_object->forwframe_->keylsd = vecLine_tracked;
         this_object->forwframe_->lineID = lineID_tracked;
@@ -2602,3 +2609,4 @@ LoadedLineSegments loadLineSegmentsFromCSV(const std::string &filename) {
 }
 
 std::ofstream line_results_file;
+std::ofstream line_ids_file;
