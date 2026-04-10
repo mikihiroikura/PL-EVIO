@@ -117,9 +117,9 @@ save_loop_match: 0              #
 
 ###########################################################################################################################################################
 # line segments csv file
-# line_segments_csv: "/data/LineSegments/LEDGE/boxes_6dof/ledge_par/a10_th020/ledge-refined_lsg.csv"
-# line_segments_method: "LEDGE"
-rosbag_start_time: 1473347517.06
-use_only_endpoints: 1
-calc_fps_start_time: 5.0
-calc_fps_end_time: 10.0
+# line_segments_csv: "/data/LineSegments/LEDGE/boxes_6dof/ledge_par/a10_th020/ledge-refined_lsg.csv" # If we waht to use other method result, we specify one line segemnt csv extracted from this method.
+# line_segments_method: "LEDGE" # Speficy method name
+rosbag_start_time: 1468940293.88 # rosbag start time
+# use_only_endpoints: 1 # (Option for only PL-EVIO) If we want to discard other information except endpoints, use 1
+#calc_fps_start_time: 5.0 # Relative start time
+# calc_fps_end_time: 10.0 # Relative end time for calculating processing time

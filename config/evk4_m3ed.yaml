@@ -110,5 +110,7 @@ save_loop_match: 1
 # line segments csv file
 # line_segments_csv: "/data/LineSegments/LEDGE/uzh-fpv_indoor_45_4/c2f-efio/csvs/1.csv"
 # line_segments_method: "C2F-EFIO"
-rosbag_start_time: 1752050440.85
-use_only_endpoints: 1
+rosbag_start_time: 10.0
+use_only_endpoints: 0
+calc_fps_start_time: 5.0
+calc_fps_end_time: 10.0
