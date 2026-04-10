@@ -12,30 +12,18 @@ output_path: "/home/plevio"
 #camera calibration 
 model_type: PINHOLE
 camera_name: camera
-image_width: 346
-image_height: 260
+image_width: 1280
+image_height: 720
 distortion_parameters:
-   k1: -0.0373464
-   k2: 0.001 
-   p1: -0.000309077
-   p2: 0.000635965
+   k1: -0.121421
+   k2: 0.166882 
+   p1: 0.000862121
+   p2: 0.00221241
 projection_parameters:
-   fx: 173.079
-   fy: 173.073
-   cx: 163.310  
-   cy: 134.998
-
-#before 20211228
-# distortion_parameters:
-#    k1: -0.36739 
-#    k2: 0.147586
-#    p1: 0.00021982
-#    p2: 0.000261649
-# projection_parameters:
-#    fx: 269.965
-#    fy: 269.943
-#    cx: 178.44 
-#    cy: 137.415 
+   fx: 1052.74
+   fy: 1052.25
+   cx: 642.779  
+   cy: 357.395
 
 # Extrinsic parameter between IMU and Camera.
 estimate_extrinsic: 0  # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
@@ -47,15 +35,15 @@ extrinsicRotation: !!opencv-matrix
    rows: 3
    cols: 3
    dt: d
-   data: [0.99892148, -0.04476788, 0.01231717,  
-                 0.04454212, 0.99884479, 0.01803002,
-                 -0.0131101, -0.01746194, 0.99976157]
+   data: [1.0, 0, 0,  
+                 0.0, 1.0, 0.0,
+                 0.0, 0.0, 1.0]
 #Translation from camera frame to imu frame, imu^T_cam
 extrinsicTranslation: !!opencv-matrix
    rows: 3
    cols: 1
    dt: d
-   data: [ -0.0012,0.0025718, 0.022]
+   data: [ 0, 0, 0]
 
 T_camera_imu: 0  # if we set the R and T as IMU to camera, we need to give an T to them
 
@@ -68,7 +56,7 @@ feature_filter_threshold: 0.01 #0.050
 
 #feature traker paprameters
 TS_LK_threshold: 128.0   # the feature detection is based on the time surface
-max_cnt: 150            # max feature number in feature tracking
+max_cnt: 200            # max feature number in feature tracking
 min_dist: 10            # min distance between two features 
 freq: 20 #10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
 F_threshold: 1.0        # ransac threshold (pixel)
@@ -79,8 +67,8 @@ fisheye: 0              # if using fisheye, trun on it. A circle mask will be lo
 Num_of_thread: 2        #number of the threads for the big event data process
 
 # line feature
-MIN_length: 20 #10
-Scale_image: 0.6 #0.1 #1.0   #The scale of the image that will be used to find the lines. Range (0..1].
+MIN_length: 50 #10
+Scale_image: 1.0 #0.1 #1.0   #The scale of the image that will be used to find the lines. Range (0..1].
 Do_motion_correction: 0
 
 #optimization parameters
@@ -106,7 +94,7 @@ fast_relocalization: 0             # useful in real-time and large project
 
 #unsynchronization parameters
 estimate_td: 0                      # online estimate time offset between camera and imu
-td: 0.00577437                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
+td: 0                             # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
 
 #rolling shutter parameters
 rolling_shutter: 0                  # 0: global shutter camera, 1: rolling shutter camera
@@ -120,7 +108,7 @@ save_loop_match: 1
 
 ###########################################################################################################################################################
 # line segments csv file
-line_segments_csv: "/data/LineSegments/LEDGE/uzh-fpv_indoor_45_4/c2f-efio/csvs/1.csv"
-line_segments_method: "C2F-EFIO"
-rosbag_start_time: 1545306097.52
+# line_segments_csv: "/data/LineSegments/LEDGE/uzh-fpv_indoor_45_4/c2f-efio/csvs/1.csv"
+# line_segments_method: "C2F-EFIO"
+rosbag_start_time: 1752050440.85
 use_only_endpoints: 1

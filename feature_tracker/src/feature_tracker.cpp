@@ -704,6 +704,11 @@ cv::Mat FeatureTracker::getTrackImage_two_line()
     return imTrack_two_line;
 }
 
+cv::Mat FeatureTracker::getTrackImage_line()
+{
+    return imTrack_line;
+}
+
 void multi_thread_create_SAE(std::vector<dvs_msgs::Event> e, int beginIndex, int length){
     for(int i=beginIndex;i<beginIndex+length;i++){
         detector.createSAE(e[i].ts.toSec(),e[i].x,e[i].y,e[i].polarity);
@@ -727,7 +732,7 @@ void multi_thread_create_SAE_motion(std::vector<dvs_msgs::Event> e, int beginInd
 }
 
 
-void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bool first_img, const cv::Mat event_mat)
+void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bool first_img, const cv::Mat event_mat, double cur_time)
 {
     mutex_threads.lock();
 
@@ -759,7 +764,13 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
     // opts.min_length=MIN_length;
 
     std::vector<cv::line_descriptor::KeyLine> lsd, keylsd;//产生的线
+    TicToc t_lsd;
     lsd_->detect(line_process_blur, lsd, 1.2, 1, opts);//检测线段(从time surface上提取)
+    if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time && cur_time < CALC_FPS_END_TIME) {
+        this_object->process_cnt_lsd++;
+        this_object->sum_time_lsd+=t_lsd.toc();
+        ROS_INFO("Average time cost of creating LSD: %f", this_object->sum_time_lsd/this_object->process_cnt_lsd);
+    }
     // （另外两个参数是）
     // detect_scale	计算当前图像的金字塔下采样倍率，默认1.2，即下采样到原来1/1.2
     // detect_numOctaves	计算当前图像需要提取几层高斯金字塔，默认值1
@@ -802,7 +813,12 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
     cv::Mat lbd_descr, keylbd_descr;//产生描述子进行匹配
     //线特征的描述子仍然采用lsd的
     cv::Ptr<cv::line_descriptor::BinaryDescriptor> bd_ = cv::line_descriptor::BinaryDescriptor::createBinaryDescriptor();
+    TicToc t_lbd;
     bd_->compute(line_process_blur, lsd, lbd_descr );//由线特征，img_line产生线描述子
+    if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time && cur_time < CALC_FPS_END_TIME) {
+        this_object->sum_time_lbd+=t_lbd.toc();
+        ROS_INFO("Average time cost of creating LBD: %f", this_object->sum_time_lbd/this_object->process_cnt_lsd);
+    }
     // ROS_ERROR("number of keyline %d",lsd.size());
 
 
@@ -834,6 +850,7 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
         std::vector<cv::DMatch> lsd_matches;//匹配器(存放匹配的结果)
         cv::Ptr<cv::line_descriptor::BinaryDescriptorMatcher> bdm_;//线特征的匹配子
         bdm_ = cv::line_descriptor::BinaryDescriptorMatcher::createBinaryDescriptorMatcher();//产生描述子匹配器
+        TicToc t_match;
         bdm_->match(this_object->forwframe_->lbd_descr, this_object->curframe_->lbd_descr, lsd_matches);//最新的，跟当前已有的进行匹配
         //注意，此时lsd_matches中的queryIdx指的是forwframe_,trainIdx指的是curframe_,
 
@@ -854,6 +871,10 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
                 } 
             }
         }
+        if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time && cur_time < CALC_FPS_END_TIME) {
+            this_object->sum_time_match+=t_match.toc();
+            ROS_INFO("Average time cost of line matching: %f", this_object->sum_time_match/this_object->process_cnt_lsd);
+        }
         this_object->rejectWithF_line(this_object->curframe_->keylsd, this_object->forwframe_->keylsd, good_matches);//实际上是对good_matches进行处理
 
         // if(good_matches.size()!=0)
@@ -871,7 +892,9 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
         {
             // FeatureTracker::event_drawTrack_two_line(forwframe_->img.clone(), curframe_->img.clone(), forwframe_->keylsd, curframe_->keylsd, good_matches);//前后帧线特征匹配的结果输出
             // this_object->event_drawTrack_two_line(this_object->forwframe_->img.clone(), this_object->curframe_->img.clone(), this_object->forwframe_->keylsd, this_object->curframe_->keylsd, good_matches);//只把匹配好的输出
+            line_results_file << cur_time << ",";
             this_object->event_drawTrack_two_line(this_object->forwframe_->event_img.clone(), this_object->curframe_->event_img.clone(), this_object->forwframe_->keylsd, this_object->curframe_->keylsd, good_matches);//只把匹配好的输出(画在event mat上)
+            line_results_file << std::endl;
             // this_object->event_drawTrack_two_line_all(this_object->forwframe_->img.clone(), this_object->curframe_->img.clone(), this_object->forwframe_->keylsd, keylsd);//全部检测的线画出来
         }
 
@@ -915,6 +938,13 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
         //     lineID_tracked.push_back(lineID_new[i]);
         //     DEscr_tracked.push_back(Descr_new.row(i));
         // }
+
+        // Record line IDs into CSV
+        line_ids_file << cur_time << ",";
+        for (size_t i = 0; i < lineID_tracked.size(); ++i) {
+            line_ids_file << lineID_tracked[i] << ",";
+        }
+        line_ids_file << std::endl;
 
         //保存下来的存放一下
         this_object->forwframe_->keylsd = vecLine_tracked;
@@ -1417,6 +1447,7 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
     cv::Mat img;
     // TicToc t_r;
     cur_time = _cur_time;//当前的时间
+    double cur_time_ros = cur_time - ROSBAG_START_TIME;
 
     //基于event生成SAE mat（同时提取time surface）
     //初始化角点检测器
@@ -1426,18 +1457,26 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
     }
 
     detector.cur_event_mat=cv::Mat::zeros(cv::Size(COL, ROW), CV_8UC3);//先清空一下
-    // TicToc t_create_sae;
+    TicToc t_create_sae;
     // 把所有的event放入SAE中(好像采用多线程，帮助不大)
     for (const dvs_msgs::Event& e:last_event.events){
         detector.createSAE(e.ts.toSec(), e.x, e.y, e.polarity);
     }
-    // ROS_INFO("time cost of creating SAE: %f", t_create_sae.toc());
+    if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time_ros && cur_time_ros < CALC_FPS_END_TIME) {
+        process_cnt++;
+        sum_time_create_sae+=t_create_sae.toc();
+        ROS_INFO("Average time cost of creating SAE: %f", sum_time_create_sae/process_cnt);
+    }
     cv::Mat event_mat=detector.cur_event_mat;//获得当前event的mat矩阵
     
 
-    // TicToc t_ts;
+    TicToc t_ts;
     const cv::Mat time_surface_map=detector.SAEtoTimeSurface(cur_time);//产生的time surface（用sae_）特征点是基于SAE产生的，故此跟踪也应该采用SAE
-    // ROS_INFO("time cost of creating time surface: %f", t_ts.toc());
+    if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time_ros && cur_time_ros < CALC_FPS_END_TIME) {
+        sum_time_create_ts+=t_ts.toc();
+        ROS_INFO("Average time cost of creating time surface: %f", sum_time_create_ts/process_cnt);
+    }
+
 
     //用于回环检测的image
     // Image_loop=detector.SAE_toTimeSurface_withoutP_multi_thread(cur_time);//最原始的，不带极性的归一化TS
@@ -1450,11 +1489,14 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
 
     if (EQUALIZE)//均衡处理
     {  // 
-        // TicToc t_c;
+        TicToc t_c;
         cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();//默认参数
         clahe->apply(time_surface, img);
         cv::normalize(img, img, 0, 255, CV_MINMAX);
-        // ROS_DEBUG("CLAHE costs: %fms", t_c.toc());
+        if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time_ros && cur_time_ros < CALC_FPS_END_TIME) {
+            sum_time_clahe+=t_c.toc();
+            ROS_INFO("Average time cost of CLAHE: %f", sum_time_clahe/process_cnt);
+        }
     }
     else
         img = time_surface;//将time surface赋给img
@@ -1492,13 +1534,12 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
 
     //处理线特征
     if (LINE_SEGMENTS_CSV == "") {
-        std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat);//img_line就是time_surface
+        std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
         if (process_linefeature_thread.joinable())
             process_linefeature_thread.detach();
     }
     else {
         // 从csv文件中读取线特征
-        double cur_time_ros = cur_time - ROSBAG_START_TIME;
         std::thread process_linefeature_from_csv_thread(process_linefeature_from_csv,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
         if (process_linefeature_from_csv_thread.joinable())
             process_linefeature_from_csv_thread.detach();
@@ -1723,7 +1764,8 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
 
 
     //处理线特征
-    std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat);//img_line就是time_surface
+    double cur_time_ros = cur_time - ROSBAG_START_TIME;
+    std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
     if (process_linefeature_thread.joinable())
         process_linefeature_thread.detach();
 
@@ -2372,6 +2414,7 @@ void FeatureTracker::event_drawTrack_two_line(const cv::Mat imageMat1, const cv:
     }
 
     cv::hconcat(img1, img2, imTrack_two_line);//将两张图像水平接起来
+    imTrack_line = cv::Mat::zeros(img2.size(), img2.type());
 
     for (int k = 0; k < good_matches.size(); ++k) {
 
@@ -2393,10 +2436,18 @@ void FeatureTracker::event_drawTrack_two_line(const cv::Mat imageMat1, const cv:
         // // 下面是画点
         // cv::circle(img2, startPoint2, MIN_DIST/2, cv::Scalar(0, 255,255), -1);//起点
         // cv::circle(img2, endPoint2, MIN_DIST/2, cv::Scalar(0, 255,255), -1);//终点
-        
+
         //用箭头可视化一一对应的关系
         cv::arrowedLine(imTrack_two_line, startPoint, startPoint2, cv::Scalar(0, 255, 0), 1, 8, 0, 0.02);//绿色线
         cv::arrowedLine(imTrack_two_line, endPoint, endPoint2, cv::Scalar(0, 255, 0), 1, 8, 0, 0.02);//绿色线
+    }
+
+    // Draw all extracted line segments
+    for (const auto& line : octave0_2) {
+        cv::Point startPoint(int(line.startPointX), int(line.startPointY));
+        cv::Point endPoint(int(line.endPointX), int(line.endPointY));
+        cv::line(imTrack_line, startPoint, endPoint, cv::Scalar(0, 255, 85), 2);// Line segments
+        line_results_file << startPoint.x << "," << startPoint.y << "," << endPoint.x << "," << endPoint.y << ",";
     }
 
     // cv::hconcat(img1, img2, imTrack_two_line);//将两张图像水平接起来
@@ -2492,32 +2543,63 @@ LoadedLineSegments loadLineSegmentsFromCSV(const std::string &filename) {
         // Record line segments
         std::vector<cv::line_descriptor::KeyLine> line_segments;
         int class_id = 0;
-        for (size_t i = 1; i + 3 < values.size(); i += 4) {
-            cv::line_descriptor::KeyLine kl;
-            if (values[i] < values[i + 2]) {
-                kl.startPointX = values[i];
-                kl.startPointY = values[i + 1];
-                kl.endPointX = values[i + 2];
-                kl.endPointY = values[i + 3];
-            } else {
-                kl.startPointX = values[i + 2];
-                kl.startPointY = values[i + 3];
-                kl.endPointX = values[i];
-                kl.endPointY = values[i + 1];
+        if (LINE_SEGMENTS_METHOD == "" || LINE_SEGMENTS_METHOD == "LEDGE" || LINE_SEGMENTS_METHOD == "Powerline" || LINE_SEGMENTS_METHOD == "FE-LSD") {
+            for (size_t i = 1; i + 3 < values.size(); i += 4) {
+                cv::line_descriptor::KeyLine kl;
+                if (values[i] < values[i + 2]) {
+                    kl.startPointX = values[i];
+                    kl.startPointY = values[i + 1];
+                    kl.endPointX = values[i + 2];
+                    kl.endPointY = values[i + 3];
+                } else {
+                    kl.startPointX = values[i + 2];
+                    kl.startPointY = values[i + 3];
+                    kl.endPointX = values[i];
+                    kl.endPointY = values[i + 1];
+                }
+                kl.angle = atan2(kl.endPointY - kl.startPointY, kl.endPointX - kl.startPointX);
+                kl.class_id = class_id++;
+                kl.octave = 0;
+                kl.pt = cv::Point2f((kl.startPointX + kl.endPointX) / 2.0f, (kl.startPointY + kl.endPointY) / 2.0f);
+                kl.lineLength = sqrt(pow(kl.endPointX - kl.startPointX, 2) + pow(kl.endPointY - kl.startPointY, 2));
+                kl.numOfPixels = std::ceil(kl.lineLength);
+                kl.response = 1.0f; // Placeholder value
+                kl.size = 1.0f;     // Placeholder value
+                kl.sPointInOctaveX = kl.startPointX;
+                kl.sPointInOctaveY = kl.startPointY;
+                kl.ePointInOctaveX = kl.endPointX;
+                kl.ePointInOctaveY = kl.endPointY;
+                line_segments.push_back(kl);
             }
-            kl.angle = atan2(kl.endPointY - kl.startPointY, kl.endPointX - kl.startPointX);
-            kl.class_id = class_id++;
-            kl.octave = 0;
-            kl.pt = cv::Point2f((kl.startPointX + kl.endPointX) / 2.0f, (kl.startPointY + kl.endPointY) / 2.0f);
-            kl.lineLength = sqrt(pow(kl.endPointX - kl.startPointX, 2) + pow(kl.endPointY - kl.startPointY, 2));
-            kl.numOfPixels = std::ceil(kl.lineLength);
-            kl.response = 1.0f; // Placeholder value
-            kl.size = 1.0f;     // Placeholder value
-            kl.sPointInOctaveX = kl.startPointX;
-            kl.sPointInOctaveY = kl.startPointY;
-            kl.ePointInOctaveX = kl.endPointX;
-            kl.ePointInOctaveY = kl.endPointY;
-            line_segments.push_back(kl);
+        }
+        else if (LINE_SEGMENTS_METHOD == "C2F-EFIO") {
+            for (size_t i = 1; i + 4 < values.size(); i += 5) {
+                cv::line_descriptor::KeyLine kl;
+                if (values[i + 1] < values[i + 3]) {
+                    kl.startPointX = values[i + 1];
+                    kl.startPointY = values[i + 2];
+                    kl.endPointX = values[i + 3];
+                    kl.endPointY = values[i + 4];
+                } else {
+                    kl.startPointX = values[i + 3];
+                    kl.startPointY = values[i + 4];
+                    kl.endPointX = values[i + 1];
+                    kl.endPointY = values[i + 2];
+                }
+                kl.angle = atan2(kl.endPointY - kl.startPointY, kl.endPointX - kl.startPointX);
+                kl.class_id = class_id++;
+                kl.octave = 0;
+                kl.pt = cv::Point2f((kl.startPointX + kl.endPointX) / 2.0f, (kl.startPointY + kl.endPointY) / 2.0f);
+                kl.lineLength = sqrt(pow(kl.endPointX - kl.startPointX, 2) + pow(kl.endPointY - kl.startPointY, 2));
+                kl.numOfPixels = std::ceil(kl.lineLength);
+                kl.response = 1.0f; // Placeholder value
+                kl.size = 1.0f;     // Placeholder value
+                kl.sPointInOctaveX = kl.startPointX;
+                kl.sPointInOctaveY = kl.startPointY;
+                kl.ePointInOctaveX = kl.endPointX;
+                kl.ePointInOctaveY = kl.endPointY;
+                line_segments.push_back(kl);
+            }
         }
         lineSegments.line_segments_per_timestamp.push_back(line_segments);
     }
@@ -2525,3 +2607,6 @@ LoadedLineSegments loadLineSegmentsFromCSV(const std::string &filename) {
     file.close();
     return lineSegments;
 }
+
+std::ofstream line_results_file;
+std::ofstream line_ids_file;

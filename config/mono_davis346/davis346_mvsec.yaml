@@ -4,9 +4,9 @@
 # imu_topic: "/dvs/imu"
 # image_topic: "/dvs/image_raw"
 # event_topic: "/dvs/events"
-imu_topic: "/dvs/imu"
-image_topic: "/dvs/image_raw"
-event_topic: "/dvs/events"
+imu_topic: "/davis/left/imu"
+image_topic: "/davis/left/image_raw"
+event_topic: "/davis/left/events"
 output_path: "/home/plevio"
 
 #camera calibration 
@@ -15,27 +15,15 @@ camera_name: camera
 image_width: 346
 image_height: 260
 distortion_parameters:
-   k1: -0.0373464
-   k2: 0.001 
-   p1: -0.000309077
-   p2: 0.000635965
+   k1: -0.048031442223833355
+   k2: 0.011330957517194437 
+   p1: -0.055378166304281135
+   p2: 0.021500973881459395
 projection_parameters:
-   fx: 173.079
-   fy: 173.073
-   cx: 163.310  
-   cy: 134.998
-
-#before 20211228
-# distortion_parameters:
-#    k1: -0.36739 
-#    k2: 0.147586
-#    p1: 0.00021982
-#    p2: 0.000261649
-# projection_parameters:
-#    fx: 269.965
-#    fy: 269.943
-#    cx: 178.44 
-#    cy: 137.415 
+   fx: 226.38018519795807
+   fy: 226.15002947047415
+   cx: 173.6470807871759  
+   cy: 133.73271487507847
 
 # Extrinsic parameter between IMU and Camera.
 estimate_extrinsic: 0  # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
@@ -120,7 +108,7 @@ save_loop_match: 1
 
 ###########################################################################################################################################################
 # line segments csv file
-line_segments_csv: "/data/LineSegments/LEDGE/uzh-fpv_indoor_45_4/c2f-efio/csvs/1.csv"
-line_segments_method: "C2F-EFIO"
-rosbag_start_time: 1545306097.52
-use_only_endpoints: 1
+# line_segments_csv: "/data/LineSegments/LEDGE/uzh-fpv_indoor_45_4/c2f-efio/csvs/1.csv"
+# line_segments_method: "C2F-EFIO"
+rosbag_start_time: 1504645458.08
+use_only_endpoints: 0

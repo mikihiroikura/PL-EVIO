@@ -83,6 +83,8 @@ struct LoadedLineSegments {
 
 extern LoadedLineSegments all_line_segments;
 LoadedLineSegments loadLineSegmentsFromCSV(const std::string &filename);
+extern std::ofstream line_results_file;
+extern std::ofstream line_ids_file;
 
 class FrameLines//每一帧
 {
@@ -137,6 +139,7 @@ class FeatureTracker
     cv::Mat getLoopImage();//返回用于回环检测的图像
     cv::Mat getTrackImage_two();//f返回前后两帧matching的结果
     cv::Mat getTrackImage_two_line();//返回前后两帧 线特征 matching的结果
+    cv::Mat getTrackImage_line();
     cv::Mat gettimesurface();//返回time surface用于可视化
 
     double distance(cv::Point2f &pt1, cv::Point2f &pt2);
@@ -194,12 +197,20 @@ class FeatureTracker
     double fx,fy,cx,cy;
     double cur_time;//当前的时间
     double prev_time;
+    double sum_time_create_sae=0.0;
+    double sum_time_create_ts=0.0;
+    double sum_time_clahe=0.0;
+    double sum_time_lsd=0.0;
+    double sum_time_lbd=0.0;
+    double sum_time_match=0.0;
+    int process_cnt=0;
+    int process_cnt_lsd=0;
 
   //跟踪的结果图像
     cv::Mat imTrack;//用于跟踪
     cv::Mat imTrack_two;//可视化前后帧跟踪过程
     cv::Mat time_surface_visualization;//用于可视化time surface map
-    cv::Mat imTrack_two_line;
+    cv::Mat imTrack_two_line, imTrack_line;
     cv::Mat Image_loop;//回环检测用的图像
 
     map<int, cv::Point2f> prevLeftPtsMap;//之前的特征点（id与点的集合）
