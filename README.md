@@ -109,6 +109,43 @@ rosbag play --pause --clock ~/dataset/boxes_translation.bag
 * We recommend to follow the instruction on ([DVS-IMU Calibration and Synchronization](https://arclab-hku.github.io/ecmd/calibration/)) to calibrate your sensors.
 * Refer to our [ESVIO](https://github.com/arclab-hku/ESVIO)
 
+<!-- ******************************************************* -->
+### 4. Evaluation for LEDGE downstream VIO task
+#### 4.1 Setup config file
+- On the bottom of config .yaml file, you should select `line_segments_method`
+- If you choose other method except PL-EVIO, choose `line_segments_csv` in which line segments are recorded by running line segment extraction
+- Add `rosbag_start_time`
+- if you evaluate computational cost, set `calc_fps_start_time`, and `calc_fps_end_time`
+#### 4.2 Execute
+Launch ros by using .launch file in `evio_estimator/launch` depending on camera resolution 
+```sh
+roslaunch evio_estimator plevio_davis240c.launch (config_path:=.......)
+rosbag play ~~~
+```
+- After the execution, the default directory `~` consists of `pl_evio_result_loop.txt`, which is 
+#### 4.3 Extract trajectory ground truth data via evo
+- Clone evo repository [Github](https://github.com/mikihiroikura/evo)
+- Create uv virtual environment and activate venv
+- Extract trajectory from rosbag via evo
+```sh
+evo_traj bag ~/data/rosbag/Scaramuzza/poster_6dof.bag /optitrack/davis --save_as_tum
+mv optitrack_davis.tum gt.csv
+```
+#### 4.4 Compare the result with GT
+- Use evo virtual environment
+- Calculate RMSE by this command
+```sh
+evo_ape tum ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/GT.txt ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/LEDGE.txt  -a
+```
+- Obtain total estimated trajectory length
+```sh
+evo_traj tum  ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/PL-EVIO.txt ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/C2F-EFIO.txt  ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/FE-LSD.txt ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/LEDGE.txt ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/GT.txt  -p --plot_mode xy -a --ref ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/GT.txt
+```
+  - In this command, we can add some other trajectory in the same plot
+  - In the terminal, the lengths of all trajectories are displayed
+- Calculate the result value
+  - RMSE / length_trajectory * 100 [%]
+
 
 <!-- ******************************************************* -->
 ## Acknowledgement
