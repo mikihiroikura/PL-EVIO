@@ -128,7 +128,7 @@ rosbag play ~~~
 - Create uv virtual environment and activate venv
 - Extract trajectory from rosbag via evo
 ```sh
-evo_traj bag ~/data/rosbag/Scaramuzza/poster_6dof.bag /optitrack/davis --save_as_tum
+evo_traj bag ~/data/rosbag/Scaramuzza/poster_6dof.bag /optitrack/davis --save_as_tum (--t_start 1473347517.06 --t_end 1473347537.06)
 mv optitrack_davis.tum gt.csv
 ```
 #### 4.4 Compare the result with GT
