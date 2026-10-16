@@ -139,7 +139,8 @@ evo_ape tum ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/GT.txt
 ```
 - Obtain total estimated trajectory length
 ```sh
-evo_traj tum  ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/PL-EVIO.txt ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/C2F-EFIO.txt  ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/FE-LSD.txt ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/LEDGE.txt ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/GT.txt  -p --plot_mode xy -a --ref ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/GT.txt
+evo_config set plot_backend Agg
+evo_traj tum  ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/PL-EVIO.txt ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/C2F-EFIO.txt  ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/FE-LSD.txt ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/LEDGE.txt ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/GT.txt  --save_plot trajectory.png --plot_mode xy -a --ref ~/data/LineSegments/LEDGE/boxes_6dof/pl-evio/trajectory_20sec/GT.txt
 ```
   - In this command, we can add some other trajectory in the same plot
   - In the terminal, the lengths of all trajectories are displayed
