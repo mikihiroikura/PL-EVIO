@@ -321,6 +321,7 @@ void eventsCallback(const dvs_msgs::EventArray &event_msg)//img_msg没有了
 
             feature_lines->header = event_msg.header;
             feature_lines->header.frame_id = "world";
+            feature_lines->header.stamp = event_msg.events.front().ts;
 
             vector<set<int>> hash_ids_line(NUM_OF_CAM);
             for (int i = 0; i < NUM_OF_CAM; i++)
