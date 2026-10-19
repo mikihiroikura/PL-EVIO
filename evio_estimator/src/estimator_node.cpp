@@ -968,15 +968,37 @@ void process_pointline_image()
                 const double backend_time = img_msg->header.stamp.toSec();
                 const double line_time = line_msg[0]->header.stamp.toSec();
                 const double line_time_end = line_msg[line_msg.size()-1]->header.stamp.toSec();
+                size_t closest_line_index = 0;
+                double closest_line_time = line_time;
+                double closest_time_difference = backend_time - closest_line_time;
+                if (closest_time_difference < 0.0)
+                    closest_time_difference = -closest_time_difference;
+
+                for (size_t index = 1; index < line_msg.size(); ++index)
+                {
+                    const double candidate_time = line_msg[index]->header.stamp.toSec();
+                    double candidate_time_difference = backend_time - candidate_time;
+                    if (candidate_time_difference < 0.0)
+                        candidate_time_difference = -candidate_time_difference;
+
+                    if (candidate_time_difference < closest_time_difference)
+                    {
+                        closest_line_index = index;
+                        closest_line_time = candidate_time;
+                        closest_time_difference = candidate_time_difference;
+                    }
+                }
 
                 ROS_INFO(
-                    "Backend: %.9f, Line first: %.9f, Line end: %.9f, dt first: %.6f ms, dt end: %.6f ms, num lines: %zu",
+                    "Backend: %.9f, Line first: %.9f, Line end: %.9f, dt first: %.6f ms, dt end: %.6f ms, num lines: %zu, closest line index: %zu, closest line time: %.9f",
                     backend_time,
                     line_time,
                     line_time_end,
                     (backend_time - line_time) * 1000.0,
                     (backend_time - line_time_end) * 1000.0,
-                    line_msg.size()
+                    line_msg.size(),
+                    closest_line_index,
+                    closest_line_time
                 );
             }
 
