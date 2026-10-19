@@ -33,6 +33,7 @@ queue<sensor_msgs::ImageConstPtr> img_buf;
 FeatureTracker trackerData[NUM_OF_CAM];//定义了跟踪类（每个相机都定义了其跟踪的对象）
 double first_image_time;
 int pub_count = 1;
+int pub_count_line = 1;
 bool first_image_flag = true;
 double last_image_time = 0;
 bool init_pub = 0;
@@ -224,6 +225,20 @@ void eventsCallback(const dvs_msgs::EventArray &event_msg)//img_msg没有了
     else
         PUB_THIS_FRAME = false;//不发布这帧
 
+    // Frequency control for line feature tracking
+    if (round(1.0 * pub_count_line / (event_msg.events[0].ts.toSec() - first_image_time)) <= FREQ_LINE)  // 保证发给后端的不超过这个频率
+    {
+        PUB_THIS_LINE = true;//发布这帧
+        // reset the frequency control
+        if (abs(1.0 * pub_count_line / (event_msg.events[0].ts.toSec() - first_image_time) - FREQ_LINE) < 0.01 * FREQ_LINE)
+        {
+            first_image_time = event_msg.events[0].ts.toSec();
+            pub_count_line = 0;
+        }
+    }
+    else
+        PUB_THIS_LINE = false;//不发布这帧
+
  // 即使不发布也是正常做光流追踪的！光流对图像的变化要求尽可能小
     // TicToc t_r;
     trackerData[0].readEvent(event_msg,event_msg.events[0].ts.toSec());//开始进行event的tracking处理
@@ -312,6 +327,25 @@ void eventsCallback(const dvs_msgs::EventArray &event_msg)//img_msg没有了
         }
 
          //下面是提取事件线特征的
+
+
+         if (SHOW_TRACK)//需要show跟踪的过程
+        {
+            // 额外写发布的函数
+            cv::Mat imageTrack=trackerData[0].getTrackImage();
+            cv::Mat imgTrack_two =trackerData[0].getTrackImage_two();
+            cv::Mat imgTrack_two_line =trackerData[0].getTrackImage_two_line();//线特征的匹配结果
+            cv::Mat imgTrack_line =trackerData[0].getTrackImage_line();//线特征的结果
+            cv::Mat Time_surface_map =trackerData[0].gettimesurface();
+            pubTrackImage(imageTrack,imgTrack_two,imgTrack_two_line,imgTrack_line,Time_surface_map,last_image_time);
+        }
+
+    }
+
+    if (PUB_THIS_LINE)
+    {
+        pub_count_line++;
+
         // if(trackerData[0].curframe_->vecLine.size()>=10)//大于十条线特征才会输出
         {
             sensor_msgs::PointCloudPtr feature_lines(new sensor_msgs::PointCloud);//定义线特征
@@ -353,18 +387,6 @@ void eventsCallback(const dvs_msgs::EventArray &event_msg)//img_msg没有了
             feature_lines->channels.push_back(u_of_endpoint);
             feature_lines->channels.push_back(v_of_endpoint);
             pub_feature_line.publish(feature_lines);//把线特征发布出去
-        }
-
-
-         if (SHOW_TRACK)//需要show跟踪的过程
-        {
-            // 额外写发布的函数
-            cv::Mat imageTrack=trackerData[0].getTrackImage();
-            cv::Mat imgTrack_two =trackerData[0].getTrackImage_two();
-            cv::Mat imgTrack_two_line =trackerData[0].getTrackImage_two_line();//线特征的匹配结果
-            cv::Mat imgTrack_line =trackerData[0].getTrackImage_line();//线特征的结果
-            cv::Mat Time_surface_map =trackerData[0].gettimesurface();
-            pubTrackImage(imageTrack,imgTrack_two,imgTrack_two_line,imgTrack_line,Time_surface_map,last_image_time);
         }
 
     }

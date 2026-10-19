@@ -31,6 +31,7 @@ extern int MIN_DIST_IMG;//图像特征的距离
 extern int WINDOW_SIZE;
 extern int FREQ;//发布事件前端的频率
 extern int FREQ_IMG;//发布图像前端的频率
+extern int FREQ_LINE;// Line feature publishing frequency
 extern double F_THRESHOLD;
 extern double TS_LK_THRESHOLD;
 extern int para_ignore_polarity;//true;
@@ -51,6 +52,7 @@ extern int STEREO_TRACK;
 extern int EQUALIZE;
 extern int FISHEYE;
 extern bool PUB_THIS_FRAME;
+extern bool PUB_THIS_LINE;
 extern Eigen::Matrix3d Eeesntial_matrix;// essential matrix from left and right camera
 
 extern int Num_of_thread;//处理大量event数组的时候采用多少个线程

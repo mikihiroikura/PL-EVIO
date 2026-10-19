@@ -22,6 +22,7 @@ int MIN_DIST_IMG;//图像特征的距离
 int WINDOW_SIZE;
 int FREQ;//发布事件前端的频率
 int FREQ_IMG;//发布图像前端的频率
+int FREQ_LINE;// Line feature publishing frequency
 double F_THRESHOLD;
 
 double TS_LK_THRESHOLD;//time surface阈值
@@ -41,6 +42,7 @@ int FOCAL_LENGTH;
 int FISHEYE;
 int USE_ONLY_ENDPOINTS=0; // Flag to use only endpoints of line segments, discard other features calculated from LSD
 bool PUB_THIS_FRAME;
+bool PUB_THIS_LINE;
 int Num_of_thread;//处理大量event数组的时候采用多少个线程
 
 //线特征相关的
@@ -108,6 +110,7 @@ void readParameters(ros::NodeHandle &n)
     ROW = fsSettings["image_height"];
     COL = fsSettings["image_width"];
     FREQ = fsSettings["freq"];//发布给后端的频率
+    FREQ_LINE = 5; //test fsSettings["freq_line"];
     // FREQ_IMG=fsSettings["freq_img"];//发布图像前端的频率
     F_THRESHOLD = fsSettings["F_threshold"];
     Num_of_thread=fsSettings["Num_of_thread"];
