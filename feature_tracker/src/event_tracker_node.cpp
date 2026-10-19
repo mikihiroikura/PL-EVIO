@@ -32,9 +32,11 @@ queue<sensor_msgs::ImageConstPtr> img_buf;
 
 FeatureTracker trackerData[NUM_OF_CAM];//定义了跟踪类（每个相机都定义了其跟踪的对象）
 double first_image_time;
+double first_line_time;
 int pub_count = 1;
 int pub_count_line = 1;
 bool first_image_flag = true;
+bool first_line_flag = true;
 double last_image_time = 0;
 bool init_pub = 0;
 
@@ -181,11 +183,17 @@ void eventsCallback(const dvs_msgs::EventArray &event_msg)//img_msg没有了
     //     // 如果当前的事件很少，那么就copy上一次的特征点，并且将特征点的速率都改为0
     // }
 
+    if(first_line_flag)
+    {
+        first_line_flag = false;
+        first_line_time = event_msg.events[0].ts.toSec();
+    }
 
     if(first_image_flag)// 对第一帧图像的基本操作
     {
         first_image_flag = false;
         first_image_time = event_msg.events[0].ts.toSec();
+        
         last_image_time = event_msg.events[0].ts.toSec();
         return;
     }
@@ -226,13 +234,13 @@ void eventsCallback(const dvs_msgs::EventArray &event_msg)//img_msg没有了
         PUB_THIS_FRAME = false;//不发布这帧
 
     // Frequency control for line feature tracking
-    if (round(1.0 * pub_count_line / (event_msg.events[0].ts.toSec() - first_image_time)) <= FREQ_LINE)  // 保证发给后端的不超过这个频率
+    if (round(1.0 * pub_count_line / (event_msg.events[0].ts.toSec() - first_line_time)) <= FREQ_LINE)  // 保证发给后端的不超过这个频率
     {
         PUB_THIS_LINE = true;//发布这帧
         // reset the frequency control
-        if (abs(1.0 * pub_count_line / (event_msg.events[0].ts.toSec() - first_image_time) - FREQ_LINE) < 0.01 * FREQ_LINE)
+        if (abs(1.0 * pub_count_line / (event_msg.events[0].ts.toSec() - first_line_time) - FREQ_LINE) < 0.01 * FREQ_LINE)
         {
-            first_image_time = event_msg.events[0].ts.toSec();
+            first_line_time = event_msg.events[0].ts.toSec();
             pub_count_line = 0;
         }
     }
