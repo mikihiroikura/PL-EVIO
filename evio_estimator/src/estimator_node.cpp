@@ -965,6 +965,15 @@ void process_pointline_image()
                         lines[feature_id].emplace_back(camera_id, Vector4d(x_startpoint, y_startpoint, x_endpoint, y_endpoint));//起始点、终止点
                     }
                 }
+                const double backend_time = img_msg->header.stamp.toSec();
+                const double line_time = line_msg[0]->header.stamp.toSec();
+
+                ROS_INFO(
+                    "Backend: %.9f, Line: %.9f, dt: %.6f ms",
+                    backend_time,
+                    line_time,
+                    (backend_time - line_time) * 1000.0
+                );
             }
 
             // ROS_ERROR("The number of the point:%d",img_msg->points.size());
