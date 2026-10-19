@@ -990,7 +990,7 @@ void process_pointline_image()
                 }
 
                 ROS_INFO(
-                    "Backend: %.9f, Line first: %.9f, Line end: %.9f, dt first: %.6f ms, dt end: %.6f ms, num lines: %zu, closest line index: %zu, closest line time: %.9f",
+                    "Backend: %.9f, Line first: %.9f, Line end: %.9f, dt first: %.6f ms, dt end: %.6f ms, num lines: %zu, closest line index: %zu, closest dt: %.9f",
                     backend_time,
                     line_time,
                     line_time_end,
@@ -998,7 +998,7 @@ void process_pointline_image()
                     (backend_time - line_time_end) * 1000.0,
                     line_msg.size(),
                     closest_line_index,
-                    closest_line_time
+                    (backend_time - closest_line_time) * 1000.0
                 );
             }
 
