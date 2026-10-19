@@ -353,10 +353,6 @@ void eventsCallback(const dvs_msgs::EventArray &event_msg)//img_msg没有了
             feature_lines->channels.push_back(u_of_endpoint);
             feature_lines->channels.push_back(v_of_endpoint);
             pub_feature_line.publish(feature_lines);//把线特征发布出去
-
-            // Test
-            feature_lines->header.stamp = event_msg.events.back().ts;
-            pub_feature_line.publish(feature_lines);//把线特征发布出去
         }
 
 
