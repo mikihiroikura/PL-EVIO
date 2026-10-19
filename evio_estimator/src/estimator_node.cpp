@@ -967,12 +967,16 @@ void process_pointline_image()
                 }
                 const double backend_time = img_msg->header.stamp.toSec();
                 const double line_time = line_msg[0]->header.stamp.toSec();
+                const double line_time_end = line_msg[line_msg.size()-1]->header.stamp.toSec();
 
                 ROS_INFO(
-                    "Backend: %.9f, Line: %.9f, dt: %.6f ms",
+                    "Backend: %.9f, Line first: %.9f, Line end: %.9f, dt first: %.6f ms, dt end: %.6f ms, num lines: %zu",
                     backend_time,
                     line_time,
-                    (backend_time - line_time) * 1000.0
+                    line_time_end,
+                    (backend_time - line_time) * 1000.0,
+                    (backend_time - line_time_end) * 1000.0,
+                    line_msg.size()
                 );
             }
 
