@@ -979,15 +979,16 @@ void process_pointline_image()
                     }
                 }
 
-                ROS_INFO(
-                    "Backend: %.9f, dt first: %.6f ms, dt end: %.6f ms, num lines: %zu, closest line index: %zu, closest dt: %.9f",
-                    backend_time,
-                    (backend_time - line_msg[0]->header.stamp.toSec()) * 1000.0,
-                    (backend_time - line_msg[line_msg.size()-1]->header.stamp.toSec()) * 1000.0,
-                    line_msg.size(),
-                    closest_linemsg_id,
-                    (backend_time - line_msg[closest_linemsg_id]->header.stamp.toSec()) * 1000.0
-                );
+                // Debug for checking the closest line feature index and its timestamp difference
+                // ROS_INFO(
+                //     "Backend: %.9f, dt first: %.6f ms, dt end: %.6f ms, num lines: %zu, closest line index: %zu, closest dt: %.9f",
+                //     backend_time,
+                //     (backend_time - line_msg[0]->header.stamp.toSec()) * 1000.0,
+                //     (backend_time - line_msg[line_msg.size()-1]->header.stamp.toSec()) * 1000.0,
+                //     line_msg.size(),
+                //     closest_linemsg_id,
+                //     (backend_time - line_msg[closest_linemsg_id]->header.stamp.toSec()) * 1000.0
+                // );
             }
 
             // ROS_ERROR("The number of the point:%d",img_msg->points.size());
