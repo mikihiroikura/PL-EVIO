@@ -113,6 +113,7 @@ void readParameters(ros::NodeHandle &n)
     cv::FileNode freq_line_node = fsSettings["freq_line"];
     if (!freq_line_node.empty())
         freq_line_node >> FREQ_LINE;
+        ROS_INFO("freq_line is configured: %d", FREQ_LINE);
     else
         ROS_WARN("freq_line is not configured; using default: %d", FREQ_LINE);
     // FREQ_IMG=fsSettings["freq_img"];//发布图像前端的频率
