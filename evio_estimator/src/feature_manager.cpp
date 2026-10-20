@@ -517,6 +517,11 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count,
     //遍历当前帧上的线特征
     for (auto &id_line : lines) 
     {
+        if (id_line.second.size() <= closest_linemsg_id) {
+            ROS_WARN("id_line.second.size() <= closest_linemsg_id, id_line.first: %d, id_line.second.size(): %zu, closest_linemsg_id: %d", 
+                      id_line.first, id_line.second.size(), closest_linemsg_id);
+            continue; // Skip this line feature if the index is out of bounds
+        }
         lineFeaturePerFrame f_per_fra(id_line.second[closest_linemsg_id].second);  // 观测
 
         int feature_id = id_line.first;
