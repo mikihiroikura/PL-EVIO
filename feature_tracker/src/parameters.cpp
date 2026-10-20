@@ -22,7 +22,7 @@ int MIN_DIST_IMG;//图像特征的距离
 int WINDOW_SIZE;
 int FREQ;//发布事件前端的频率
 int FREQ_IMG;//发布图像前端的频率
-int FREQ_LINE;// Line feature publishing frequency
+int FREQ_LINE = 20;// Line feature publishing frequency
 double F_THRESHOLD;
 
 double TS_LK_THRESHOLD;//time surface阈值
@@ -110,7 +110,11 @@ void readParameters(ros::NodeHandle &n)
     ROW = fsSettings["image_height"];
     COL = fsSettings["image_width"];
     FREQ = fsSettings["freq"];//发布给后端的频率
-    FREQ_LINE = 5; //test fsSettings["freq_line"];
+    cv::FileNode freq_line_node = fsSettings["freq_line"];
+    if (!freq_line_node.empty())
+        freq_line_node >> FREQ_LINE;
+    else
+        ROS_WARN("freq_line is not configured; using default: %d", FREQ_LINE);
     // FREQ_IMG=fsSettings["freq_img"];//发布图像前端的频率
     F_THRESHOLD = fsSettings["F_threshold"];
     Num_of_thread=fsSettings["Num_of_thread"];
