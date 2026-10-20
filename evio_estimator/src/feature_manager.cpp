@@ -459,7 +459,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count,
                                              const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, //图像特征
                                              const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, //事件点特征
                                              const map<int, vector<pair<int, Vector4d>>> &lines, //事件线特征
-                                             double td)
+                                             double td, const int closest_linemsg_id = 0)
 {
     // ROS_WARN("input feature------image feature: %d, event feature: %d, event line feature: %d", (int)image.size(), (int)event.size(), (int)lines.size());
     // ROS_WARN("useful------image feature: %d, event feature: %d, event line feature: %d", getFeatureCount(), getEventFeatureCount(), getLineFeatureCount());
@@ -517,7 +517,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count,
     //遍历当前帧上的线特征
     for (auto &id_line : lines) 
     {
-        lineFeaturePerFrame f_per_fra(id_line.second[0].second);  // 观测
+        lineFeaturePerFrame f_per_fra(id_line.second[closest_linemsg_id].second);  // 观测
 
         int feature_id = id_line.first;
         //cout << "line id: "<< feature_id << "\n";

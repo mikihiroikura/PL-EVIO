@@ -951,7 +951,12 @@ void process_pointline_image()
             map<int, vector<pair<int, Vector4d>>> lines;
             // if(line_msg!=NULL){
             if(!line_msg.empty()){
-                for(auto event_line_msg:line_msg){
+                // Prepartion for time synchronization between line features and image features
+                const double backend_time = img_msg->header.stamp.toSec();
+                closest_linemsg_id = 0;
+                double closest_time_difference = std::numeric_limits<double>::max();
+                for(int msg_idx = 0; msg_idx < line_msg.size(); msg_idx++){
+                    const auto& event_line_msg = line_msg[msg_idx];
                     for (unsigned int i = 0; i < event_line_msg->points.size(); i++)
                     {
                         int v = event_line_msg->channels[0].values[i] + 0.5;
@@ -964,41 +969,49 @@ void process_pointline_image()
                         double y_endpoint = event_line_msg->channels[2].values[i];
                         lines[feature_id].emplace_back(camera_id, Vector4d(x_startpoint, y_startpoint, x_endpoint, y_endpoint));//起始点、终止点
                     }
-                }
-                const double backend_time = img_msg->header.stamp.toSec();
-                const double line_time = line_msg[0]->header.stamp.toSec();
-                const double line_time_end = line_msg[line_msg.size()-1]->header.stamp.toSec();
-                size_t closest_line_index = 0;
-                double closest_line_time = line_time;
-                double closest_time_difference = backend_time - closest_line_time;
-                if (closest_time_difference < 0.0)
-                    closest_time_difference = -closest_time_difference;
-
-                for (size_t index = 1; index < line_msg.size(); ++index)
-                {
-                    const double candidate_time = line_msg[index]->header.stamp.toSec();
-                    double candidate_time_difference = backend_time - candidate_time;
-                    if (candidate_time_difference < 0.0)
-                        candidate_time_difference = -candidate_time_difference;
-
-                    if (candidate_time_difference < closest_time_difference)
+                    // Extract closest line feature index based on timestamp
+                    const double line_time = event_line_msg->header.stamp.toSec();
+                    double time_difference = fabs(backend_time - line_time);
+                    if (time_difference < closest_time_difference)
                     {
-                        closest_line_index = index;
-                        closest_line_time = candidate_time;
-                        closest_time_difference = candidate_time_difference;
+                        closest_linemsg_id = msg_idx;
+                        closest_time_difference = time_difference;
                     }
                 }
 
+                // Debug
+                // const double backend_time = img_msg->header.stamp.toSec();
+                // const double line_time = line_msg[0]->header.stamp.toSec();
+                // const double line_time_end = line_msg[line_msg.size()-1]->header.stamp.toSec();
+                // size_t closest_line_index = 0;
+                // double closest_line_time = line_time;
+                // double closest_time_difference = backend_time - closest_line_time;
+                // if (closest_time_difference < 0.0)
+                //     closest_time_difference = -closest_time_difference;
+
+                // for (size_t index = 1; index < line_msg.size(); ++index)
+                // {
+                //     const double candidate_time = line_msg[index]->header.stamp.toSec();
+                //     double candidate_time_difference = backend_time - candidate_time;
+                //     if (candidate_time_difference < 0.0)
+                //         candidate_time_difference = -candidate_time_difference;
+
+                //     if (candidate_time_difference < closest_time_difference)
+                //     {
+                //         closest_line_index = index;
+                //         closest_line_time = candidate_time;
+                //         closest_time_difference = candidate_time_difference;
+                //     }
+                // }
+
                 ROS_INFO(
-                    "Backend: %.9f, Line first: %.9f, Line end: %.9f, dt first: %.6f ms, dt end: %.6f ms, num lines: %zu, closest line index: %zu, closest dt: %.9f",
+                    "Backend: %.9f, dt first: %.6f ms, dt end: %.6f ms, num lines: %zu, closest line index: %zu, closest dt: %.9f",
                     backend_time,
-                    line_time,
-                    line_time_end,
-                    (backend_time - line_time) * 1000.0,
-                    (backend_time - line_time_end) * 1000.0,
+                    (backend_time - line_msg[0]->header.stamp.toSec()) * 1000.0,
+                    (backend_time - line_msg[line_msg.size()-1]->header.stamp.toSec()) * 1000.0,
                     line_msg.size(),
-                    closest_line_index,
-                    (backend_time - closest_line_time) * 1000.0
+                    closest_linemsg_id,
+                    (backend_time - line_msg[closest_linemsg_id]->header.stamp.toSec()) * 1000.0
                 );
             }
 
@@ -1013,7 +1026,8 @@ void process_pointline_image()
                         
             // estimator.processImage(image, img_msg->header);//主要的处理feature的函数
             // estimator.processImage(image, lines, img_msg->header); // 把点状特征也加入进行处理。
-            estimator.processImage(image,event,lines, img_msg->header); // 把点状特征也加入进行处理。
+            closest_linemsg_id = 0; // Debug: reset closest_linemsg_id to 0 after processing
+            estimator.processImage(image,event,lines, img_msg->header, closest_linemsg_id); // 把点状特征也加入进行处理。
 
 
              // 一些打印以及topic的发送

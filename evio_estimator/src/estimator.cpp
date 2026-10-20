@@ -336,13 +336,13 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
 void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, //图片特征
                              const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, //事件点状特征
                              const map<int, vector<pair<int, Vector4d>>> &lines,//事件线状特征
-                             const std_msgs::Header &header)
+                             const std_msgs::Header &header, const int closest_linemsg_id = 0)
 {
     ROS_DEBUG("new image coming ------------------------------------------");
     ROS_DEBUG("Adding feature points %lu", image.size());
     // if (f_manager.addFeatureCheckParallax(frame_count, image, td))//关键帧的选择（添加特征并且检查视差，看是否作为keyframe）
     // if (f_manager.addFeatureCheckParallax(frame_count, image, lines, td))//添加特征点与线特征, 检测视差 (根据视差决定marge最老帧还是次新帧)
-    if (f_manager.addFeatureCheckParallax(frame_count, image, event, lines, td))//添加特征点与线特征, 检测视差 (根据视差决定marge最老帧还是次新帧)
+    if (f_manager.addFeatureCheckParallax(frame_count, image, event, lines, td, closest_linemsg_id))//添加特征点与线特征, 检测视差 (根据视差决定marge最老帧还是次新帧)
         marginalization_flag = MARGIN_OLD;
     else
         marginalization_flag = MARGIN_SECOND_NEW;

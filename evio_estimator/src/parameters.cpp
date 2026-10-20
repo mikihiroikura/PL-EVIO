@@ -38,6 +38,9 @@ bool g_use_sampson_model = false;
 bool g_use_stereo_correction = true; // false; 
 bool g_opt_verbose = false; 
 
+// LEDGE evauation
+int closest_linemsg_id = 0; // the closest line msg id to the image msg, used for line feature association
+
 template <typename T>
 T readParam(ros::NodeHandle &n, std::string name)
 {
