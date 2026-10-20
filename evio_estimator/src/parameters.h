@@ -56,9 +56,6 @@ extern bool g_use_sampson_model;
 extern bool g_use_stereo_correction; 
 extern bool g_opt_verbose; 
 
-// LEDGE evaluation
-extern int closest_linemsg_id; // the closest line msg id to the image msg, used for line feature association
-
 // 给线特征用的
 const int LINE_MIN_OBS = 2; //2;//最小的线观测需求，原本设置为5，此处为保证给线特征的一致性为2
 

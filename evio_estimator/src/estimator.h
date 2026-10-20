@@ -52,8 +52,7 @@ class Estimator
     void processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, //图像状特征
                       const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, //事件点状特征
                       const map<int, vector<pair<int, Vector4d>>> &lines,//事件线状特征 
-                      const std_msgs::Header &header,
-                      const int closest_linemsg_id = 0);
+                      const std_msgs::Header &header);
     void Setreo_processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, //图像状特征
                             const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, //事件点状特征
                             const map<int, vector<pair<int, Vector4d>>> &lines,//事件线状特征 

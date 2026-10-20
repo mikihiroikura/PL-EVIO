@@ -304,7 +304,7 @@ class FeatureManager
                                   const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, 
                                   const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, 
                                   const map<int, vector<pair<int, Vector4d>>> &lines, 
-                                  double td, const int closest_linemsg_id = 0);
+                                  double td);
     //双目
     bool stereo_addFeatureCheckParallax( int frame_count, 
                                   const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, 

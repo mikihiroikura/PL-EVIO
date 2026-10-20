@@ -951,25 +951,13 @@ void process_pointline_image()
             map<int, vector<pair<int, Vector4d>>> lines;
             // if(line_msg!=NULL){
             if(!line_msg.empty()){
-                // Prepartion for time synchronization between line features and image features
+                // Extract closest line feature index based on timestamp
+                int closest_linemsg_id = 0;
                 const double backend_time = img_msg->header.stamp.toSec();
                 closest_linemsg_id = 0;
                 double closest_time_difference = std::numeric_limits<double>::max();
                 for(int msg_idx = 0; msg_idx < line_msg.size(); msg_idx++){
                     const auto& event_line_msg = line_msg[msg_idx];
-                    for (unsigned int i = 0; i < event_line_msg->points.size(); i++)
-                    {
-                        int v = event_line_msg->channels[0].values[i] + 0.5;
-                        // std::cout<< "receive id: " << v / NUM_OF_CAM << "\n";
-                        int feature_id = v / NUM_OF_CAM;
-                        int camera_id = v % NUM_OF_CAM;        // 被几号相机观测到的，如果是单目，camera_id = 0
-                        double x_startpoint = event_line_msg->points[i].x;
-                        double y_startpoint = event_line_msg->points[i].y;
-                        double x_endpoint = event_line_msg->channels[1].values[i];
-                        double y_endpoint = event_line_msg->channels[2].values[i];
-                        lines[feature_id].emplace_back(camera_id, Vector4d(x_startpoint, y_startpoint, x_endpoint, y_endpoint));//起始点、终止点
-                    }
-                    // Extract closest line feature index based on timestamp
                     const double line_time = event_line_msg->header.stamp.toSec();
                     double time_difference = fabs(backend_time - line_time);
                     if (time_difference < closest_time_difference)
@@ -977,6 +965,21 @@ void process_pointline_image()
                         closest_linemsg_id = msg_idx;
                         closest_time_difference = time_difference;
                     }
+                }
+
+                // Step 2: Use only the selected message
+                const auto& selected_msg = line_msg[closest_linemsg_id];
+                for (unsigned int i = 0; i < selected_msg->points.size(); i++)
+                {
+                    int v = selected_msg->channels[0].values[i] + 0.5;
+                    // std::cout<< "receive id: " << v / NUM_OF_CAM << "\n";
+                    int feature_id = v / NUM_OF_CAM;
+                    int camera_id = v % NUM_OF_CAM;        // 被几号相机观测到的，如果是单目，camera_id = 0
+                    double x_startpoint = selected_msg->points[i].x;
+                    double y_startpoint = selected_msg->points[i].y;
+                    double x_endpoint = selected_msg->channels[1].values[i];
+                    double y_endpoint = selected_msg->channels[2].values[i];
+                    lines[feature_id].emplace_back(camera_id, Vector4d(x_startpoint, y_startpoint, x_endpoint, y_endpoint));//起始点、终止点
                 }
 
                 // Debug for checking the closest line feature index and its timestamp difference
@@ -1003,7 +1006,7 @@ void process_pointline_image()
             // estimator.processImage(image, img_msg->header);//主要的处理feature的函数
             // estimator.processImage(image, lines, img_msg->header); // 把点状特征也加入进行处理。
             // closest_linemsg_id = 0; // Debug: reset closest_linemsg_id to 0 after processing
-            estimator.processImage(image,event,lines, img_msg->header, closest_linemsg_id); // 把点状特征也加入进行处理。
+            estimator.processImage(image,event,lines, img_msg->header); // 把点状特征也加入进行处理。
 
 
              // 一些打印以及topic的发送
