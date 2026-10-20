@@ -954,7 +954,6 @@ void process_pointline_image()
                 // Extract closest line feature index based on timestamp
                 int closest_linemsg_id = 0;
                 const double backend_time = img_msg->header.stamp.toSec();
-                closest_linemsg_id = 0;
                 double closest_time_difference = std::numeric_limits<double>::max();
                 for(int msg_idx = 0; msg_idx < line_msg.size(); msg_idx++){
                     const auto& event_line_msg = line_msg[msg_idx];
