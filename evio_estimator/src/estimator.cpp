@@ -336,7 +336,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
 void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, //图片特征
                              const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, //事件点状特征
                              const map<int, vector<pair<int, Vector4d>>> &lines,//事件线状特征
-                             const std_msgs::Header &header, const int closest_linemsg_id = 0)
+                             const std_msgs::Header &header, const int closest_linemsg_id)
 {
     ROS_DEBUG("new image coming ------------------------------------------");
     ROS_DEBUG("Adding feature points %lu", image.size());
