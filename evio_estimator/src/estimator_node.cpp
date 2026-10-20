@@ -979,31 +979,6 @@ void process_pointline_image()
                     }
                 }
 
-                // Debug
-                // const double backend_time = img_msg->header.stamp.toSec();
-                // const double line_time = line_msg[0]->header.stamp.toSec();
-                // const double line_time_end = line_msg[line_msg.size()-1]->header.stamp.toSec();
-                // size_t closest_line_index = 0;
-                // double closest_line_time = line_time;
-                // double closest_time_difference = backend_time - closest_line_time;
-                // if (closest_time_difference < 0.0)
-                //     closest_time_difference = -closest_time_difference;
-
-                // for (size_t index = 1; index < line_msg.size(); ++index)
-                // {
-                //     const double candidate_time = line_msg[index]->header.stamp.toSec();
-                //     double candidate_time_difference = backend_time - candidate_time;
-                //     if (candidate_time_difference < 0.0)
-                //         candidate_time_difference = -candidate_time_difference;
-
-                //     if (candidate_time_difference < closest_time_difference)
-                //     {
-                //         closest_line_index = index;
-                //         closest_line_time = candidate_time;
-                //         closest_time_difference = candidate_time_difference;
-                //     }
-                // }
-
                 ROS_INFO(
                     "Backend: %.9f, dt first: %.6f ms, dt end: %.6f ms, num lines: %zu, closest line index: %zu, closest dt: %.9f",
                     backend_time,
@@ -1026,7 +1001,7 @@ void process_pointline_image()
                         
             // estimator.processImage(image, img_msg->header);//主要的处理feature的函数
             // estimator.processImage(image, lines, img_msg->header); // 把点状特征也加入进行处理。
-            closest_linemsg_id = 0; // Debug: reset closest_linemsg_id to 0 after processing
+            // closest_linemsg_id = 0; // Debug: reset closest_linemsg_id to 0 after processing
             estimator.processImage(image,event,lines, img_msg->header, closest_linemsg_id); // 把点状特征也加入进行处理。
 
 
