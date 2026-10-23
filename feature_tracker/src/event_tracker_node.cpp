@@ -194,7 +194,7 @@ void eventsLineCallback(const dvs_msgs::EventArray &event_msg_line) {
 
 
     // 从csv文件中读取线特征
-    trackerDataLine[0].process_linefeature_from_csv(event_msg,event_msg.events[0].ts.toSec());//img_line就是time_surface
+    trackerDataLine[0].process_linefeature_from_csv(event_msg_line, event_msg_line.events[0].ts.toSec());//img_line就是time_surface
 
 
     if (PUB_THIS_LINE)
