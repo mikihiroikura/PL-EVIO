@@ -444,9 +444,10 @@ int main(int argc, char **argv)
         ROS_INFO("Line segments method set to: %s", LINE_SEGMENTS_METHOD.c_str());
     }
 
-    for (int i = 0; i < NUM_OF_CAM; i++)
+    for (int i = 0; i < NUM_OF_CAM; i++) {
         trackerData[i].readIntrinsicParameter(CAM_NAMES[i]);  // 获得每个相机的内参
         trackerDataLine[i].readIntrinsicParameter(CAM_NAMES[i]);  // 获得每个相机的内参
+    }
 
     // ros::Subscriber sub_img = n.subscribe(IMAGE_TOPIC, 100, img_callback);//订阅image
     //事件的订阅者
