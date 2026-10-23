@@ -70,7 +70,8 @@ feature_filter_threshold: 0.01 #0.050
 TS_LK_threshold: 128.0   # the feature detection is based on the time surface
 max_cnt: 150            # max feature number in feature tracking
 min_dist: 10            # min distance between two features 
-freq: 20 #10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
+freq: 20 #10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image
+freq_line: 30 # LEDGE evaluation
 F_threshold: 1.0        # ransac threshold (pixel)
 show_track: 1           # publish tracking image as topic
 flow_back: 1            # perform forward and backward optical flow to improve feature tracking accuracy
@@ -120,7 +121,7 @@ save_loop_match: 1
 
 ###########################################################################################################################################################
 # line segments csv file
-line_segments_csv: "/data/LineSegments/LEDGE/uzh-fpv_indoor_45_4/c2f-efio/csvs/1.csv"
-line_segments_method: "C2F-EFIO"
-rosbag_start_time: 1545306097.52
+line_segments_csv: "/data/LineSegments/LEDGE/dynamic_6dof/ledge_seq/a10_th020/ledge-refined_lsg.csv"
+line_segments_method: "LEDGE"
+rosbag_start_time: 1473347517.06
 use_only_endpoints: 1
