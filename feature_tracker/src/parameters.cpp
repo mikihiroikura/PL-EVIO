@@ -96,6 +96,7 @@ void readParameters(ros::NodeHandle &n)
     fsSettings["image2_topic"] >> IMAGE2_TOPIC; 
     fsSettings["event_topic"] >> EVENT_TOPIC;//事件话题的读入
     fsSettings["event_line_topic"] >> EVENT_LINE_TOPIC;//事件线话题的读入
+    ROS_INFO("event_line_topic: %s", EVENT_LINE_TOPIC.c_str());
     fsSettings["imu_topic"] >> IMU_TOPIC;
     fsSettings["line_segments_csv"] >> LINE_SEGMENTS_CSV;
     fsSettings["line_segments_method"] >> LINE_SEGMENTS_METHOD;
