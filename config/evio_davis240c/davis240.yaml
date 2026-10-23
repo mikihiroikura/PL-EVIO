@@ -4,7 +4,7 @@
 imu_topic: "/dvs/imu"
 image_topic: "/dvs/image_raw"
 event_topic: "/dvs/events"   # this is modified
-# event_topic: "/davis240c/events"   # this is modified
+event_line_topic: "/dvs/events_line"   # event array for line feature callback
 output_path: "/home/plevio"
 
 ###########################################################################################################################

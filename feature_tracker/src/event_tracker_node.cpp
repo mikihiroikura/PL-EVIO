@@ -31,6 +31,7 @@ vector<float> r_err;
 queue<sensor_msgs::ImageConstPtr> img_buf;
 
 FeatureTracker trackerData[NUM_OF_CAM];//定义了跟踪类（每个相机都定义了其跟踪的对象）
+FeatureTracker trackerDataLine[NUM_OF_CAM];// Feature tracker for line features
 double first_image_time;
 double first_line_time;
 int pub_count = 1;
@@ -164,6 +165,88 @@ void multi_thread_feature(std::vector<dvs_msgs::Event> e, int beginIndex, int le
 }
 
 
+void eventsLineCallback(const dvs_msgs::EventArray &event_msg_line) {
+    const int n_event =event_msg_line.events.size();
+    if (n_event ==0) {
+        ROS_WARN("not event for LINE, please move the event camera or check whether connecting");
+        return;
+    }
+
+    if(first_line_flag)
+    {
+        first_line_flag = false;
+        first_line_time = event_msg_line.events[0].ts.toSec();
+    }
+
+    // Frequency control for line feature tracking
+    if (round(1.0 * pub_count_line / (event_msg_line.events[0].ts.toSec() - first_line_time)) <= FREQ_LINE)  // 保证发给后端的不超过这个频率
+    {
+        PUB_THIS_LINE = true;//发布这帧
+        // reset the frequency control
+        if (abs(1.0 * pub_count_line / (event_msg_line.events[0].ts.toSec() - first_line_time) - FREQ_LINE) < 0.01 * FREQ_LINE)
+        {
+            first_line_time = event_msg_line.events[0].ts.toSec();
+            pub_count_line = 0;
+        }
+    }
+    else
+        PUB_THIS_LINE = false;//不发布这帧
+
+
+    // 从csv文件中读取线特征
+    trackerDataLine[0].process_linefeature_from_csv(event_msg,event_msg.events[0].ts.toSec());//img_line就是time_surface
+
+
+    if (PUB_THIS_LINE)
+    {
+        pub_count_line++;
+
+        // if(trackerDataLine[0].curframe_->vecLine.size()>=10)//大于十条线特征才会输出
+        {
+            sensor_msgs::PointCloudPtr feature_lines(new sensor_msgs::PointCloud);//定义线特征
+            sensor_msgs::ChannelFloat32 id_of_line;   //  线特征的id feature id
+            sensor_msgs::ChannelFloat32 u_of_endpoint;    //  u 线特征的终点
+            sensor_msgs::ChannelFloat32 v_of_endpoint;    //  v
+
+            feature_lines->header = event_msg_line.header;
+            feature_lines->header.frame_id = "world";
+            feature_lines->header.stamp = event_msg_line.events.front().ts;
+
+            vector<set<int>> hash_ids_line(NUM_OF_CAM);
+            for (int i = 0; i < NUM_OF_CAM; i++)
+            {
+                auto un_lines = trackerDataLine[0].curframe_->vecLine;
+
+                auto &ids_line = trackerDataLine[0].curframe_->lineID;//获取当前所有线的id
+
+                for (unsigned int j = 0; j < ids_line.size(); j++)
+                {
+
+                    int p_id = ids_line[j];//当前线的id
+                    hash_ids_line[i].insert(p_id);
+                    geometry_msgs::Point32 p;//起点的xy
+                    p.x = un_lines[j].StartPt.x;//起点的xy
+                    p.y = un_lines[j].StartPt.y;
+                    p.z = 1;
+
+                    feature_lines->points.push_back(p);//放入线的起点
+                    id_of_line.values.push_back(p_id * NUM_OF_CAM + i);//线的id
+                    // std::cout<< "feature tracking id: " <<p_id * NUM_OF_CAM + i<<" "<<p_id<<"\n";
+                    u_of_endpoint.values.push_back(un_lines[j].EndPt.x);//放入线的终点
+                    v_of_endpoint.values.push_back(un_lines[j].EndPt.y);
+                    //ROS_ASSERT(inBorder(cur_pts[j]));
+                }
+
+            }
+            feature_lines->channels.push_back(id_of_line);
+            feature_lines->channels.push_back(u_of_endpoint);
+            feature_lines->channels.push_back(v_of_endpoint);
+            pub_feature_line.publish(feature_lines);//把线特征发布出去
+        }
+
+    }
+}
+
 
 void eventsCallback(const dvs_msgs::EventArray &event_msg)//img_msg没有了
 {
@@ -182,12 +265,6 @@ void eventsCallback(const dvs_msgs::EventArray &event_msg)//img_msg没有了
     //     // return;
     //     // 如果当前的事件很少，那么就copy上一次的特征点，并且将特征点的速率都改为0
     // }
-
-    if(first_line_flag)
-    {
-        first_line_flag = false;
-        first_line_time = event_msg.events[0].ts.toSec();
-    }
 
     if(first_image_flag)// 对第一帧图像的基本操作
     {
@@ -233,23 +310,9 @@ void eventsCallback(const dvs_msgs::EventArray &event_msg)//img_msg没有了
     else
         PUB_THIS_FRAME = false;//不发布这帧
 
-    // Frequency control for line feature tracking
-    if (round(1.0 * pub_count_line / (event_msg.events[0].ts.toSec() - first_line_time)) <= FREQ_LINE)  // 保证发给后端的不超过这个频率
-    {
-        PUB_THIS_LINE = true;//发布这帧
-        // reset the frequency control
-        if (abs(1.0 * pub_count_line / (event_msg.events[0].ts.toSec() - first_line_time) - FREQ_LINE) < 0.01 * FREQ_LINE)
-        {
-            first_line_time = event_msg.events[0].ts.toSec();
-            pub_count_line = 0;
-        }
-    }
-    else
-        PUB_THIS_LINE = false;//不发布这帧
-
  // 即使不发布也是正常做光流追踪的！光流对图像的变化要求尽可能小
     // TicToc t_r;
-    trackerData[0].readEvent(event_msg,event_msg.events[0].ts.toSec());//开始进行event的tracking处理
+    trackerData[0].readEventWithoutLine(event_msg,event_msg.events[0].ts.toSec());//开始进行event的tracking处理
     // printf("featureTracker time: %f ms \n", t_r.toc());//看看特征检测需要的时间（ms）
     // if (t_r.toc()>18)
     //     std::cout<<"featureTracker time!!!!!!!!!!!!!!!!!!!!!!!!:"<<t_r.toc()<<std::endl;
@@ -349,55 +412,6 @@ void eventsCallback(const dvs_msgs::EventArray &event_msg)//img_msg没有了
         }
 
     }
-
-    if (PUB_THIS_LINE)
-    {
-        pub_count_line++;
-
-        // if(trackerData[0].curframe_->vecLine.size()>=10)//大于十条线特征才会输出
-        {
-            sensor_msgs::PointCloudPtr feature_lines(new sensor_msgs::PointCloud);//定义线特征
-            sensor_msgs::ChannelFloat32 id_of_line;   //  线特征的id feature id
-            sensor_msgs::ChannelFloat32 u_of_endpoint;    //  u 线特征的终点
-            sensor_msgs::ChannelFloat32 v_of_endpoint;    //  v
-
-            feature_lines->header = event_msg.header;
-            feature_lines->header.frame_id = "world";
-            feature_lines->header.stamp = event_msg.events.front().ts;
-
-            vector<set<int>> hash_ids_line(NUM_OF_CAM);
-            for (int i = 0; i < NUM_OF_CAM; i++)
-            {
-                auto un_lines = trackerData[0].curframe_->vecLine;
-
-                auto &ids_line = trackerData[0].curframe_->lineID;//获取当前所有线的id
-
-                for (unsigned int j = 0; j < ids_line.size(); j++)
-                {
-
-                    int p_id = ids_line[j];//当前线的id
-                    hash_ids_line[i].insert(p_id);
-                    geometry_msgs::Point32 p;//起点的xy
-                    p.x = un_lines[j].StartPt.x;//起点的xy
-                    p.y = un_lines[j].StartPt.y;
-                    p.z = 1;
-
-                    feature_lines->points.push_back(p);//放入线的起点
-                    id_of_line.values.push_back(p_id * NUM_OF_CAM + i);//线的id
-                    // std::cout<< "feature tracking id: " <<p_id * NUM_OF_CAM + i<<" "<<p_id<<"\n";
-                    u_of_endpoint.values.push_back(un_lines[j].EndPt.x);//放入线的终点
-                    v_of_endpoint.values.push_back(un_lines[j].EndPt.y);
-                    //ROS_ASSERT(inBorder(cur_pts[j]));
-                }
-
-            }
-            feature_lines->channels.push_back(id_of_line);
-            feature_lines->channels.push_back(u_of_endpoint);
-            feature_lines->channels.push_back(v_of_endpoint);
-            pub_feature_line.publish(feature_lines);//把线特征发布出去
-        }
-
-    }
     // if(t_whole.toc()>20)
     //     ROS_INFO("whole feature tracker processing costs!!!!!!!!!!!!!!!!!!!!: %f", t_whole.toc());
     // std::cout<<"feed to the estimator?"<<PUB_THIS_FRAME<<std::endl;
@@ -432,10 +446,12 @@ int main(int argc, char **argv)
 
     for (int i = 0; i < NUM_OF_CAM; i++)
         trackerData[i].readIntrinsicParameter(CAM_NAMES[i]);  // 获得每个相机的内参
+        trackerDataLine[i].readIntrinsicParameter(CAM_NAMES[i]);  // 获得每个相机的内参
 
     // ros::Subscriber sub_img = n.subscribe(IMAGE_TOPIC, 100, img_callback);//订阅image
     //事件的订阅者
     ros::Subscriber event_sub = n.subscribe(EVENT_TOPIC, 0, &eventsCallback);//之前设置的为0
+    ros::Subscriber event_sub_line = n.subscribe(EVENT_LINE_TOPIC, 0, &eventsLineCallback);//之前设置的为0
 
     // 注册一些publisher
     registerPub(n);//注册一些发布者(自定义的)

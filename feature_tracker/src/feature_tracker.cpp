@@ -4,6 +4,7 @@
 #include <mutex>
 
 evio::ArcStarDetector detector = evio::ArcStarDetector();//进行声明检测器
+evio::ArcStarDetector detectorForLine = evio::ArcStarDetector();//进行声明检测器
 
 int FeatureTracker::n_id = 0;//点特征计数
 int FeatureTracker::allfeature_cnt = 0;//线特征的计数（ // 用来统计整个地图中有了多少条线，它将用来赋值）
@@ -1109,14 +1110,74 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
 }
 
 
-void process_linefeature_from_csv(FeatureTracker *this_object, const cv::Mat img_line, bool first_img, const cv::Mat event_mat, double cur_time)
+void FeatureTracker::process_linefeature_from_csv(double cur_time)
 {
-    mutex_threads.lock();
+    cv::Mat img;
+    // TicToc t_r;
+    cur_time = _cur_time;//当前的时间
+    double cur_time_ros = cur_time - ROSBAG_START_TIME;
+
+    //基于event生成SAE mat（同时提取time surface）
+    //初始化角点检测器
+    if(FLAG_DETECTOR_NOSTART){
+        FLAG_DETECTOR_NOSTART=false;
+        detectorForLine.init(COL,ROW);//注意输入的值
+    }
+
+    detectorForLine.cur_event_mat=cv::Mat::zeros(cv::Size(COL, ROW), CV_8UC3);//先清空一下
+    TicToc t_create_sae;
+    // 把所有的event放入SAE中(好像采用多线程，帮助不大)
+    for (const dvs_msgs::Event& e:last_event.events){
+        detectorForLine.createSAE(e.ts.toSec(), e.x, e.y, e.polarity);
+    }
+    cv::Mat event_mat=detectorForLine.cur_event_mat;//获得当前event的mat矩阵
+    
+
+    TicToc t_ts;
+    const cv::Mat time_surface_map=detectorForLine.SAEtoTimeSurface(cur_time);//产生的time surface（用sae_）特征点是基于SAE产生的，故此跟踪也应该采用SA
+
+
+    time_surface_visualization=time_surface_map.clone();//用于可视化,输出time surface
+    cv::Mat time_surface = time_surface_map.clone();//开始可以使用(用于辅助提取特征点以及二次光流检测)
+
+
+    if (EQUALIZE)//均衡处理
+    {  // 
+        TicToc t_c;
+        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();//默认参数
+        clahe->apply(time_surface, img);
+        cv::normalize(img, img, 0, 255, CV_MINMAX);
+    }
+    else
+        img = time_surface;//将time surface赋给img
+
+    //给线特征用的
+    cv::Mat img_line;//给线特征用的
+    img_line=img.clone();//保证点特征的tracking与线特征的描述子均在同一个环境下
+    bool first_img = false;//是否第一帧
+    if (cur_img.empty()) // 第一次输入图像，prev_img这个没用
+    {
+        prev_img = cur_img= img;//全部初始化
+        
+        curframe_.reset(new FrameLines);//当前已经有的，上一帧的
+        curframe_->img = img_line;
+        curframe_->event_img=event_mat;
+        first_img = true;
+    }
+    else//不是第一帧时，把当前帧给forw_img
+    {
+        // forw_img = img;//把当前帧给forw_img（光流跟踪的图像）原来代码用forw_img
+        cur_img=img;//整个处理都是用cur_img(最后把当前的cur_img给prev_img)
+    }
+
+    // forw_pts.clear();//光流检测的特征点
+    cv::Mat rightImg;//空的，用来辅助画图而已
+    cur_pts.clear();//当前帧的特征点清
 
     //push 当前信息
-    this_object->forwframe_.reset(new FrameLines);  // 初始化一个新的帧
-    this_object->forwframe_->img = img_line;
-    this_object->forwframe_->event_img=event_mat;
+    this->forwframe_.reset(new FrameLines);  // 初始化一个新的帧
+    this->forwframe_->img = img_line;
+    this->forwframe_->event_img=event_mat;
 
     // 先对time surface进行中值滤波处理
     cv::Mat line_process_blur=img_line.clone();//用time surface来提取特征与匹配
@@ -1133,9 +1194,6 @@ void process_linefeature_from_csv(FeatureTracker *this_object, const cv::Mat img
         all_line_segments.current_index++;
     }
     lsd = all_line_segments.line_segments_per_timestamp[all_line_segments.current_index - 1];
-    // if (lsd.size() > 0) {
-    //     ROS_INFO("Line segments at t: %f, num of line segments: %d, startPoint: (%f, %f), endPoint: (%f, %f)", cur_time, lsd.size(), lsd[0].startPointX, lsd[0].startPointY, lsd[0].endPointX, lsd[0].endPointY);
-    // }
 
     // LBD for descriptors to match line segments
     cv::Mat lbd_descr, keylbd_descr;//产生描述子进行匹配
@@ -1156,24 +1214,24 @@ void process_linefeature_from_csv(FeatureTracker *this_object, const cv::Mat img
         }
     }
 
-    this_object->forwframe_->keylsd = keylsd;//当前帧的线特征
-    this_object->forwframe_->lbd_descr = keylbd_descr;//当前帧线特征的描述子
+    this->forwframe_->keylsd = keylsd;//当前帧的线特征
+    this->forwframe_->lbd_descr = keylbd_descr;//当前帧线特征的描述子
 
     //ID更新
-    for (size_t i = 0; i < this_object->forwframe_->keylsd.size(); ++i) {
+    for (size_t i = 0; i < this->forwframe_->keylsd.size(); ++i) {
         if(first_img)//如果是第一帧的话，把id加入
-            this_object->forwframe_->lineID.push_back(this_object->allfeature_cnt++);
+            this->forwframe_->lineID.push_back(this->allfeature_cnt++);
         else//若不是第一帧的话，先赋予-1（后面会进行更新处理）
-            this_object->forwframe_->lineID.push_back(-1);   // give a negative id  新检测的id全部置为-1
+            this->forwframe_->lineID.push_back(-1);   // give a negative id  新检测的id全部置为-1
     }
     
     //当前已有的关键线的size大于0的时候，就开始进行匹配处理
-    if(this_object->curframe_->keylsd.size() > 0)
+    if(this->curframe_->keylsd.size() > 0)
     {
         std::vector<cv::DMatch> lsd_matches;//匹配器(存放匹配的结果)
         cv::Ptr<cv::line_descriptor::BinaryDescriptorMatcher> bdm_;//线特征的匹配子
         bdm_ = cv::line_descriptor::BinaryDescriptorMatcher::createBinaryDescriptorMatcher();//产生描述子匹配器
-        bdm_->match(this_object->forwframe_->lbd_descr, this_object->curframe_->lbd_descr, lsd_matches);//最新的，跟当前已有的进行匹配
+        bdm_->match(this->forwframe_->lbd_descr, this->curframe_->lbd_descr, lsd_matches);//最新的，跟当前已有的进行匹配
         //注意，此时lsd_matches中的queryIdx指的是forwframe_,trainIdx指的是curframe_,
 
         std::vector<cv::DMatch> good_matches;//保存匹配效果比较好的
@@ -1183,8 +1241,8 @@ void process_linefeature_from_csv(FeatureTracker *this_object, const cv::Mat img
             if(lsd_matches[i].distance<30){//当匹配的距离少于30认为是比较好的匹配
             // if(lsd_matches[i].distance<60){//把约束要求降低
                 cv::DMatch mt=lsd_matches[i];
-                cv::line_descriptor::KeyLine line1=this_object->forwframe_->keylsd[mt.queryIdx];//queryIdx指的是forwframe_
-                cv::line_descriptor::KeyLine line2=this_object->curframe_->keylsd[mt.trainIdx];//trainIdx指的是curframe_,
+                cv::line_descriptor::KeyLine line1=this->forwframe_->keylsd[mt.queryIdx];//queryIdx指的是forwframe_
+                cv::line_descriptor::KeyLine line2=this->curframe_->keylsd[mt.trainIdx];//trainIdx指的是curframe_,
                 cv::Point2f serr = line1.getStartPoint() - line2.getEndPoint();//起始点的误差
                 cv::Point2f eerr = line1.getEndPoint() - line2.getEndPoint();//终止点的误差
                 if((serr.dot(serr) < 200 * 200) && (eerr.dot(eerr) < 200 * 200)&&abs(line1.angle-line2.angle)<0.1){ // 线段在图像里不会跑得特别远
@@ -1193,7 +1251,7 @@ void process_linefeature_from_csv(FeatureTracker *this_object, const cv::Mat img
                 } 
             }
         }
-        this_object->rejectWithF_line(this_object->curframe_->keylsd, this_object->forwframe_->keylsd, good_matches);//实际上是对good_matches进行处理
+        this->rejectWithF_line(this->curframe_->keylsd, this->forwframe_->keylsd, good_matches);//实际上是对good_matches进行处理
 
         // if(good_matches.size()!=0)
             // ROS_ERROR("number of good_matches %d",good_matches.size());
@@ -1201,17 +1259,17 @@ void process_linefeature_from_csv(FeatureTracker *this_object, const cv::Mat img
         // vector< int > success_id;//获取成功匹配的id，匹配成功的才会进行id赋值
         for (int k = 0; k < good_matches.size(); ++k) {
             cv::DMatch mt = good_matches[k];
-            this_object->forwframe_->lineID[mt.queryIdx] = this_object->curframe_->lineID[mt.trainIdx];//匹配上的id进行赋值,没匹配上的，仍然是-1
-            // success_id.push_back(this_object->curframe_->lineID[mt.trainIdx]);//获取成功匹配的id
+            this->forwframe_->lineID[mt.queryIdx] = this->curframe_->lineID[mt.trainIdx];//匹配上的id进行赋值,没匹配上的，仍然是-1
+            // success_id.push_back(this->curframe_->lineID[mt.trainIdx]);//获取成功匹配的id
         }
 
 
         if(SHOW_TRACK)//读入参数是否show跟踪，如果是的话，就运行下面函数，将线特征显示出来！ （并且要不是第一帧）
         {
             // FeatureTracker::event_drawTrack_two_line(forwframe_->img.clone(), curframe_->img.clone(), forwframe_->keylsd, curframe_->keylsd, good_matches);//前后帧线特征匹配的结果输出
-            // this_object->event_drawTrack_two_line(this_object->forwframe_->img.clone(), this_object->curframe_->img.clone(), this_object->forwframe_->keylsd, this_object->curframe_->keylsd, good_matches);//只把匹配好的输出
-            this_object->event_drawTrack_two_line(this_object->forwframe_->event_img.clone(), this_object->curframe_->event_img.clone(), this_object->forwframe_->keylsd, this_object->curframe_->keylsd, good_matches);//只把匹配好的输出(画在event mat上)
-            // this_object->event_drawTrack_two_line_all(this_object->forwframe_->img.clone(), this_object->curframe_->img.clone(), this_object->forwframe_->keylsd, keylsd);//全部检测的线画出来
+            // this->event_drawTrack_two_line(this->forwframe_->img.clone(), this->curframe_->img.clone(), this->forwframe_->keylsd, this->curframe_->keylsd, good_matches);//只把匹配好的输出
+            this->event_drawTrack_two_line(this->forwframe_->event_img.clone(), this->curframe_->event_img.clone(), this->forwframe_->keylsd, this->curframe_->keylsd, good_matches);//只把匹配好的输出(画在event mat上)
+            // this->event_drawTrack_two_line_all(this->forwframe_->img.clone(), this->curframe_->img.clone(), this->forwframe_->keylsd, keylsd);//全部检测的线画出来
         }
 
 
@@ -1225,25 +1283,25 @@ void process_linefeature_from_csv(FeatureTracker *this_object, const cv::Mat img
         // 将跟踪的线和没跟踪上的线进行区分
         int num_new=0;
         int num_old=0;
-        for (size_t i = 0; i < this_object->forwframe_->keylsd.size(); ++i)//遍历当前所有的线特征（关键的，经过选择后的）
+        for (size_t i = 0; i < this->forwframe_->keylsd.size(); ++i)//遍历当前所有的线特征（关键的，经过选择后的）
         {
-            if( this_object->forwframe_->lineID[i] == -1)//没匹配上的
+            if( this->forwframe_->lineID[i] == -1)//没匹配上的
             {
-                this_object->forwframe_->lineID[i] = this_object->allfeature_cnt++;//对ID进行更新，这部分很重要！
-                // vecLine_new.push_back(this_object->forwframe_->keylsd[i]);
-                // lineID_new.push_back(this_object->forwframe_->lineID[i]);
-                // Descr_new.push_back(this_object->forwframe_->lbd_descr.row( i ) );
+                this->forwframe_->lineID[i] = this->allfeature_cnt++;//对ID进行更新，这部分很重要！
+                // vecLine_new.push_back(this->forwframe_->keylsd[i]);
+                // lineID_new.push_back(this->forwframe_->lineID[i]);
+                // Descr_new.push_back(this->forwframe_->lbd_descr.row( i ) );
                 
                 //将新产生的ID也保存下来
-                vecLine_tracked.push_back(this_object->forwframe_->keylsd[i]);
-                lineID_tracked.push_back(this_object->forwframe_->lineID[i]);
-                DEscr_tracked.push_back(this_object->forwframe_->lbd_descr.row( i ) );
+                vecLine_tracked.push_back(this->forwframe_->keylsd[i]);
+                lineID_tracked.push_back(this->forwframe_->lineID[i]);
+                DEscr_tracked.push_back(this->forwframe_->lbd_descr.row( i ) );
                 num_new++;
             }else//匹配上的
             {
-                vecLine_tracked.push_back(this_object->forwframe_->keylsd[i]);
-                lineID_tracked.push_back(this_object->forwframe_->lineID[i]);
-                DEscr_tracked.push_back(this_object->forwframe_->lbd_descr.row( i ) );
+                vecLine_tracked.push_back(this->forwframe_->keylsd[i]);
+                lineID_tracked.push_back(this->forwframe_->lineID[i]);
+                DEscr_tracked.push_back(this->forwframe_->lbd_descr.row( i ) );
                 num_old++;
             }
         }
@@ -1256,9 +1314,9 @@ void process_linefeature_from_csv(FeatureTracker *this_object, const cv::Mat img
         // }
 
         //保存下来的存放一下
-        this_object->forwframe_->keylsd = vecLine_tracked;
-        this_object->forwframe_->lineID = lineID_tracked;
-        this_object->forwframe_->lbd_descr = DEscr_tracked;
+        this->forwframe_->keylsd = vecLine_tracked;
+        this->forwframe_->lineID = lineID_tracked;
+        this->forwframe_->lbd_descr = DEscr_tracked;
 
         if(good_matches.size()!=num_old){
             ROS_ERROR("number of good_matches %d",good_matches.size());
@@ -1276,26 +1334,26 @@ void process_linefeature_from_csv(FeatureTracker *this_object, const cv::Mat img
         // ***********************************************************************//
     }
     else{//当上一次没有检测新的特征线，会导致当前的特征线为0；那么对最新的检测出的特征线赋值id
-        for(int i=0;i<this_object->forwframe_->keylsd.size();++i){//
-            if(this_object->forwframe_->lineID[i] == -1)
-                this_object->forwframe_->lineID[i] = this_object->allfeature_cnt++;//对ID进行更新
+        for(int i=0;i<this->forwframe_->keylsd.size();++i){//
+            if(this->forwframe_->lineID[i] == -1)
+                this->forwframe_->lineID[i] = this->allfeature_cnt++;//对ID进行更新
         }
 
     }
 
 
     //将keline格式的线进行转换
-    for (int j = 0; j < this_object->forwframe_->keylsd.size(); ++j){
+    for (int j = 0; j < this->forwframe_->keylsd.size(); ++j){
         Line l;
-        cv::line_descriptor::KeyLine lsd = this_object->forwframe_->keylsd[j];
+        cv::line_descriptor::KeyLine lsd = this->forwframe_->keylsd[j];
         // l.StartPt = lsd.getStartPoint();
         // l.EndPt = lsd.getEndPoint();
         cv::Point2f start_point=lsd.getStartPoint();
         cv::Point2f end_point= lsd.getEndPoint();
         //去除失真
-        if(this_object->m_camera){//若不是空的话，就使用
-            l.StartPt=this_object->undistortedPts(start_point,this_object->m_camera);//获得未失真的点，输入的为当前跟踪的点以及相机的参数
-            l.EndPt=this_object->undistortedPts(end_point,this_object->m_camera);//获得未失真的点，输入的为当前跟踪的点以及相机的参数
+        if(this->m_camera){//若不是空的话，就使用
+            l.StartPt=this->undistortedPts(start_point,this->m_camera);//获得未失真的点，输入的为当前跟踪的点以及相机的参数
+            l.EndPt=this->undistortedPts(end_point,this->m_camera);//获得未失真的点，输入的为当前跟踪的点以及相机的参数
         }
         else{
             ROS_ERROR("without undistortedPts !!!");
@@ -1304,15 +1362,14 @@ void process_linefeature_from_csv(FeatureTracker *this_object, const cv::Mat img
         }
         
         l.length = lsd.lineLength;
-        this_object->forwframe_->vecLine.push_back(l);
+        this->forwframe_->vecLine.push_back(l);
     }
 
-    // if(this_object->forwframe_->keylsd.size()!=0)//当当前帧检测的线不为0时，才赋值，不然已有的会被清空
-        this_object->curframe_ = this_object->forwframe_;
+    // if(this->forwframe_->keylsd.size()!=0)//当当前帧检测的线不为0时，才赋值，不然已有的会被清空
+        this->curframe_ = this->forwframe_;
 
     // // curframe_->vecLine
-    // this_object->curframe_->vecLine=this_object->undistortedLineEndPoints();//去除失真(但每次使用就会存在内存益处的问题)
-    mutex_threads.unlock();
+    // this->curframe_->vecLine=this->undistortedLineEndPoints();//去除失真(但每次使用就会存在内存益处的问题)
 }
 
 void process_pointfeature(FeatureTracker *this_object,const cv::Mat time_surface, const dvs_msgs::EventArray &last_event, const cv::Mat event_mat)
@@ -1440,6 +1497,215 @@ void process_pointfeature(FeatureTracker *this_object,const cv::Mat time_surface
 
 }
 
+
+void FeatureTracker::readEventWithoutLine(const dvs_msgs::EventArray &last_event, double _cur_time)//真正进行跟踪处理
+{
+    cv::Mat img;
+    // TicToc t_r;
+    cur_time = _cur_time;//当前的时间
+    double cur_time_ros = cur_time - ROSBAG_START_TIME;
+
+    //基于event生成SAE mat（同时提取time surface）
+    //初始化角点检测器
+    if(FLAG_DETECTOR_NOSTART){
+        FLAG_DETECTOR_NOSTART=false;
+        detector.init(COL,ROW);//注意输入的值
+    }
+
+    detector.cur_event_mat=cv::Mat::zeros(cv::Size(COL, ROW), CV_8UC3);//先清空一下
+    TicToc t_create_sae;
+    // 把所有的event放入SAE中(好像采用多线程，帮助不大)
+    for (const dvs_msgs::Event& e:last_event.events){
+        detector.createSAE(e.ts.toSec(), e.x, e.y, e.polarity);
+    }
+    if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time_ros && cur_time_ros < CALC_FPS_END_TIME) {
+        process_cnt++;
+        sum_time_create_sae+=t_create_sae.toc();
+        ROS_INFO("Average time cost of creating SAE: %f", sum_time_create_sae/process_cnt);
+    }
+    cv::Mat event_mat=detector.cur_event_mat;//获得当前event的mat矩阵
+    
+
+    TicToc t_ts;
+    const cv::Mat time_surface_map=detector.SAEtoTimeSurface(cur_time);//产生的time surface（用sae_）特征点是基于SAE产生的，故此跟踪也应该采用SAE
+    if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time_ros && cur_time_ros < CALC_FPS_END_TIME) {
+        sum_time_create_ts+=t_ts.toc();
+        ROS_INFO("Average time cost of creating time surface: %f", sum_time_create_ts/process_cnt);
+    }
+
+
+    //用于回环检测的image
+    // Image_loop=detector.SAE_toTimeSurface_withoutP_multi_thread(cur_time);//最原始的，不带极性的归一化TS
+
+
+    time_surface_visualization=time_surface_map.clone();//用于可视化,输出time surface
+    //   time_surface_visualization=ChangeEventstream2MatWithP(last_event,1);//用于可视化,输出event frame
+    cv::Mat time_surface = time_surface_map.clone();//开始可以使用(用于辅助提取特征点以及二次光流检测)
+
+
+    if (EQUALIZE)//均衡处理
+    {  // 
+        TicToc t_c;
+        cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();//默认参数
+        clahe->apply(time_surface, img);
+        cv::normalize(img, img, 0, 255, CV_MINMAX);
+        if (CALC_FPS_START_TIME > 0 && CALC_FPS_END_TIME > 0 && CALC_FPS_START_TIME < cur_time_ros && cur_time_ros < CALC_FPS_END_TIME) {
+            sum_time_clahe+=t_c.toc();
+            ROS_INFO("Average time cost of CLAHE: %f", sum_time_clahe/process_cnt);
+        }
+    }
+    else
+        img = time_surface;//将time surface赋给img
+
+
+    // pubLoopImage(img,cur_time);//用作回环检测的
+
+
+     //给线特征用的
+    cv::Mat img_line;//给线特征用的
+    img_line=img.clone();//保证点特征的tracking与线特征的描述子均在同一个环境下
+    bool first_img = false;//是否第一帧
+    if (cur_img.empty()) // 第一次输入图像，prev_img这个没用
+    {
+        prev_img = cur_img= img;//全部初始化
+        
+        // 也对线特征进行初始化
+        mutex_threads.lock();
+        curframe_.reset(new FrameLines);//当前已经有的，上一帧的
+        curframe_->img = img_line;
+        curframe_->event_img=event_mat;
+        first_img = true;
+        mutex_threads.unlock();
+    }
+    else//不是第一帧时，把当前帧给forw_img
+    {
+        // forw_img = img;//把当前帧给forw_img（光流跟踪的图像）原来代码用forw_img
+        cur_img=img;//整个处理都是用cur_img(最后把当前的cur_img给prev_img)
+    }
+
+    // forw_pts.clear();//光流检测的特征点
+    cv::Mat rightImg;//空的，用来辅助画图而已
+    cur_pts.clear();//当前帧的特征点清
+
+    if (prev_pts.size() > 0)////若上一帧的特征点大于0则实行光流跟踪
+    {
+        TicToc t_o;
+        vector<uchar> status;
+        vector<float> err;
+         // Step 1 通过opencv光流追踪给的状态位剔除outlier
+        cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);//之前一直为2
+
+        if(FLOW_BACK)//这是读入的参数，是否需要进行二次的光流检测
+        {
+            vector<uchar> reverse_status;
+            vector<cv::Point2f> reverse_pts = prev_pts;
+
+            // cv::calcOpticalFlowPyrLK(cur_img, prev_img, cur_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 2); //之前一直用这个
+            cv::calcOpticalFlowPyrLK(cur_img, prev_img, cur_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 1, 
+            cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
+            for(size_t i = 0; i < status.size(); i++)
+            {
+                if(status[i] && reverse_status[i] && distance(prev_pts[i], reverse_pts[i]) <= 0.5)//原本要求distance 要小于0.5(一直以来设置为1)
+                // if(status[i] && reverse_status[i] && distance(prev_pts[i], reverse_pts[i]) <= 1 && time_surface.at<uchar>(cur_pts[i].y,cur_pts[i].x)!=TS_LK_THRESHOLD)//原本要求distance 要小于0.5(设置为6)
+                {
+                    status[i] = 1;//为1的时候会保留
+                }
+                else
+                    status[i] = 0;
+            }
+        }
+
+        for (int i = 0; i < int(cur_pts.size()); i++)
+            if (status[i] && !inBorder(cur_pts[i]))
+                status[i] = 0;
+        reduceVector(prev_pts, status);//外点剔除，剔除无用的特征点后，还是得到prev_pts
+        reduceVector(cur_pts, status);
+        reduceVector(ids, status);// 特征点的id
+        reduceVector(track_cnt, status);//被跟踪到的特征点的次数
+        // reduceVector(cur_un_pts, status);// 去畸变后的坐标
+
+        // reduceVector(forw_pts, status);
+        // ROS_DEBUG("temporal optical flow costs: %fms", t_o.toc());
+        //  printf("number of feature after LK-time_surface tracking %d\n", (int)cur_pts.size());
+    }
+   
+
+    for (auto &n : track_cnt) // 被追踪到的是上一帧就存在的，因此追踪数+1
+        n++;//上面已经追踪到了，把被追踪的次数++
+
+    // TicToc t_detect_point;
+    if (PUB_THIS_FRAME)//原来设置是：PUB_THIS_FRAME
+    {
+        // rejectWithF(); // Step 3 通过对级约束来剔除outlier（之前没有用），此处函数是基于flow point的，所以没有意义
+        rejectWithF_event();
+        ROS_DEBUG("set mask begins");
+        TicToc t_m;
+        setevent_Mask();//很重要，让特征点分布稀疏一些
+        ROS_DEBUG("set mask costs %fms", t_m.toc());
+
+        ROS_DEBUG("detect feature begins");
+        // TicToc t_t;
+        int n_max_cnt = MAX_CNT - static_cast<int>(cur_pts.size());//额外需要检测的点
+        if (n_max_cnt > 0)
+        {
+            if(mask_arc.empty())
+                cout << "mask is empty!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
+            if (mask_arc.type() != CV_64FC1)
+                cout << "mask type wrong!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
+            if (mask_arc.size() != time_surface.size())
+                cout << "wrong size!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << endl;
+            // cv::goodFeaturesToTrack(forw_img, n_pts, MAX_CNT - forw_pts.size(), 0.01, MIN_DIST, mask);//检测新的特征点
+            good_arc_FeaturesToTrack(time_surface, last_event,n_pts, cur_pts, n_max_cnt, MIN_DIST, mask_arc);
+            //画图用
+            // good_arc_FeaturesToTrack(time_surface, last_event,n_pts, cur_pts, n_max_cnt, MIN_DIST, mask_arc, event_mat);
+        }
+        else
+            n_pts.clear();//清空
+        // ROS_DEBUG("detect feature costs: %fms", t_t.toc());
+
+        // ROS_DEBUG("add feature begins");
+        // TicToc t_a;
+        // addPoints();//把检测到的点，加入当前点
+         for (auto &p : n_pts)//将n_pts给cur_pts，注意n_pts是进一步detected的点
+        {
+            cur_pts.push_back(p);//检测到的n_pts会放入当前的cur_pts里面
+            // ids.push_back(n_id++);//可能是size还是那么多，就是number不一样？
+            ids.push_back(-1);//新检测的特征点的id的值给-1（第一个特征点给为-1）
+            track_cnt.push_back(1);
+        }
+
+        // printf("number of feature after event-corner detection %d\n", (int)cur_pts.size());
+
+        // ROS_DEBUG("selectFeature costs: %fms", t_a.toc());
+    }
+    // ROS_INFO("time cost of detecting event-feature: %f", t_detect_point.toc());
+    // std::cout<<"PUB_THIS_FRAME="<<PUB_THIS_FRAME<<std::endl;
+
+    cur_un_pts.clear();
+    cur_un_pts = undistortedPts(cur_pts, m_camera);//获得未失真的点，输入的为当前跟踪的点以及相机的参数
+    pts_velocity.clear();
+    pts_velocity = ptsVelocity(ids, cur_un_pts, cur_un_pts_map, prev_un_pts_map);//计算速度
+    //得到的速度主要是给时间偏移用的
+
+    if(SHOW_TRACK)//读入参数是否show跟踪，如果是的话，就运行下面函数，将特征点显示出来！
+   {
+        //  event_drawTrack(cur_img, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap);//在tracking的time surface上画的
+        event_drawTrack(event_mat, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap);
+        event_drawTrack_two(cur_img, prev_img, ids, cur_pts, prev_pts, prevLeftPtsMap);//前后帧跟踪的结果输出
+   }
+
+   //执行完后，将当前帧的一些数据变为上一帧
+    prev_img = cur_img;
+    prev_pts = cur_pts;//上一帧的点由当前帧的点给出来，而当前帧的点由n_pts给出来，而n_pts由goodevent_FeaturesToTrack给出来
+    prev_un_pts = cur_un_pts;
+    prev_un_pts_map = cur_un_pts_map;//来自ptsVelocity，将特征点的id以及不失真的点坐标放到了一起，后面可以再次用于计算特征点的速率
+    prev_time = cur_time;//同步很重要！！
+
+    prevLeftPtsMap.clear();
+    for(size_t i = 0; i < cur_pts.size(); i++)
+        prevLeftPtsMap[ids[i]] = cur_pts[i];//这个跟cur_un_pts_map或者说prev_un_pts_map很类似？（画图需要用到）
+
+}
 
 
 void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _cur_time)//真正进行跟踪处理

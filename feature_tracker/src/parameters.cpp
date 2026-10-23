@@ -5,6 +5,7 @@ std::string IMAGE_TOPIC;
 std::string IMAGE1_TOPIC;//双目时，左相机的topic
 std::string IMAGE2_TOPIC; //双目时，右相机的topic
 std::string EVENT_TOPIC;//事件的话题
+std::string EVENT_LINE_TOPIC;//事件线的话题
 std::string IMU_TOPIC;
 std::string LINE_SEGMENTS_CSV = "";
 std::string LINE_SEGMENTS_METHOD = "";
@@ -94,6 +95,7 @@ void readParameters(ros::NodeHandle &n)
     fsSettings["image1_topic"] >> IMAGE1_TOPIC;
     fsSettings["image2_topic"] >> IMAGE2_TOPIC; 
     fsSettings["event_topic"] >> EVENT_TOPIC;//事件话题的读入
+    fsSettings["event_line_topic"] >> EVENT_LINE_TOPIC;//事件线话题的读入
     fsSettings["imu_topic"] >> IMU_TOPIC;
     fsSettings["line_segments_csv"] >> LINE_SEGMENTS_CSV;
     fsSettings["line_segments_method"] >> LINE_SEGMENTS_METHOD;
