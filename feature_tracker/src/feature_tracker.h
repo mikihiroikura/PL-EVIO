@@ -114,7 +114,7 @@ class FeatureTracker
     void readEvent(const dvs_msgs::EventArray &last_event, double _cur_time, const Motion_correction_value measurements);//做event stream的tracking(加入imu信息做运动补偿用的)
 
     void readEventWithoutLine(const dvs_msgs::EventArray &last_event, double _cur_time);
-    void process_linefeature_from_csv(double cur_time);
+    void process_linefeature_from_csv(const dvs_msgs::EventArray &last_event, double _cur_time);
 
     void trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1); //用于做双目的feature tracking
 

@@ -1110,7 +1110,7 @@ void process_linefeature(FeatureTracker *this_object, const cv::Mat img_line, bo
 }
 
 
-void FeatureTracker::process_linefeature_from_csv(double cur_time)
+void FeatureTracker::process_linefeature_from_csv(const dvs_msgs::EventArray &last_event, double _cur_time)
 {
     cv::Mat img;
     // TicToc t_r;
@@ -1799,17 +1799,20 @@ void FeatureTracker::readEvent(const dvs_msgs::EventArray &last_event, double _c
 
 
     //处理线特征
-    if (LINE_SEGMENTS_CSV == "") {
-        std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
-        if (process_linefeature_thread.joinable())
-            process_linefeature_thread.detach();
-    }
-    else {
-        // 从csv文件中读取线特征
-        std::thread process_linefeature_from_csv_thread(process_linefeature_from_csv,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
-        if (process_linefeature_from_csv_thread.joinable())
-            process_linefeature_from_csv_thread.detach();
-    }
+    // if (LINE_SEGMENTS_CSV == "") {
+    //     std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
+    //     if (process_linefeature_thread.joinable())
+    //         process_linefeature_thread.detach();
+    // }
+    // else {
+    //     // 从csv文件中读取线特征
+    //     std::thread process_linefeature_from_csv_thread(process_linefeature_from_csv,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
+    //     if (process_linefeature_from_csv_thread.joinable())
+    //         process_linefeature_from_csv_thread.detach();
+    // }
+    std::thread process_linefeature_thread(process_linefeature,this,time_surface,first_img, event_mat, cur_time_ros);//img_line就是time_surface
+    if (process_linefeature_thread.joinable())
+        process_linefeature_thread.detach();
 
     
     if (prev_pts.size() > 0)////若上一帧的特征点大于0则实行光流跟踪
