@@ -300,6 +300,87 @@ getMeasurements_pl_image()//实际上就是为了获取当前特征那段的imu�
     return measurements;
 }
 
+
+std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>,
+                std::pair<sensor_msgs::PointCloudConstPtr,std::pair<sensor_msgs::PointCloudConstPtr,sensor_msgs::PointCloudConstPtr> > > > 
+getMeasurements_pl_image_line_highfreq()//实际上就是为了获取当前特征那段的imu数据（时间的软同步）
+{
+    // std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, sensor_msgs::PointCloudConstPtr>> measurements;
+    // std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>,
+    //         std::pair<sensor_msgs::PointCloudConstPtr,sensor_msgs::PointCloudConstPtr> >> measurements;
+    std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>,
+                std::pair<sensor_msgs::PointCloudConstPtr,
+                    std::pair<sensor_msgs::PointCloudConstPtr,sensor_msgs::PointCloudConstPtr> > > > measurements;
+
+    // imagefeature_buf 图像特征
+    //feature_buf 事件点特征
+    //linefeature_buf 事件线特征
+    // imu_buf imu
+
+    while (true)
+    {
+        // if (imu_buf.empty() || feature_buf.empty()|| linefeature_buf.empty())//IMU与图像都没来 (是否需要管line buffer？)
+        if (imu_buf.empty() || linefeature_buf.empty())//IMU与图像都没来 (那就返回空的)
+            return measurements;
+
+        if (!(imu_buf.back()->header.stamp.toSec() > linefeature_buf.front()->header.stamp.toSec() + estimator.td))//最新的IMU的时间小于等于当前图像的时间+td（那么就是IMU没到）
+        {
+            //ROS_WARN("wait for imu, only should happen at the beginning");
+            sum_of_wait++;
+            return measurements;
+        }
+
+        if (!(imu_buf.front()->header.stamp.toSec() < linefeature_buf.front()->header.stamp.toSec() + estimator.td))//当最早的IMU的时间>=最早的图像的时间+td，扔掉在IMU前面发生的一下image
+        {
+            ROS_WARN("throw img, only should happen at the beginning");
+            if(feature_buf.size()!=0)
+                feature_buf.pop();//事件点特征
+            if(linefeature_buf.size()!=0)
+                linefeature_buf.pop();//线特征
+            if(imagefeature_buf.size()!=0)
+                imagefeature_buf.pop();//图像特征
+            continue;
+        } // 此时就保证了图像前一定有imu数据
+
+        //时间戳检查完毕，凯撒获取IMU与image feature信息
+        sensor_msgs::PointCloudConstPtr event_msg;
+        if(feature_buf.size()!=0){
+            event_msg = feature_buf.front();//拿到最前的feature
+            feature_buf.pop();//删掉最前的feature
+        }
+        sensor_msgs::PointCloudConstPtr linefeature_msg;
+        if(linefeature_buf.size()!=0){
+            linefeature_msg = linefeature_buf.front();//获取线特征
+            linefeature_buf.pop();
+        }
+        sensor_msgs::PointCloudConstPtr image_msg;
+        if(imagefeature_buf.size()!=0){
+            image_msg = imagefeature_buf.front();//拿到最前的图像feature
+            imagefeature_buf.pop();//删掉最前的feature
+        }
+
+        // ROS_ERROR("image_buf: %d, event_point_buf: %d, event_line_buf:%d",imagefeature_buf.size(),feature_buf.size(),linefeature_buf.size());        
+        
+
+        // 一般第一帧不会严格对齐，但是后面就都会对齐，当然第一帧也不会用到
+        std::vector<sensor_msgs::ImuConstPtr> IMUs;
+        while (imu_buf.front()->header.stamp.toSec() < linefeature_msg->header.stamp.toSec() + estimator.td)
+        {
+            IMUs.emplace_back(imu_buf.front());
+            imu_buf.pop();
+        }
+
+        IMUs.emplace_back(imu_buf.front());// 保留图像时间戳后一个imu数据，但不会从buffer中扔掉
+        if (IMUs.empty())
+            ROS_WARN("no imu between two image");
+
+        // measurements.emplace_back(IMUs, img_msg);//放进来进行处理
+        measurements.emplace_back(IMUs, std::make_pair(image_msg,std::make_pair(event_msg,linefeature_msg)));//IMU+（图像+（事件点特征，事件线特征））
+    }
+    return measurements;
+}
+
+
 /**
  * @brief imu消息存进buffer，同时按照imu频率预测位姿并发送，这样就可以提高里程计频率
  * 
@@ -1035,6 +1116,233 @@ void process_pointline_image()
 }
 
 
+void process_point_line_highfreq_image()
+{
+    while (true)  // This thread runs continuously.
+    {
+        // std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, sensor_msgs::PointCloudConstPtr>> measurements;
+        // std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>,
+        //         std::pair<sensor_msgs::PointCloudConstPtr,sensor_msgs::PointCloudConstPtr> >> measurements; // The measurement currently contains point and line features.
+        std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>,
+                std::pair<sensor_msgs::PointCloudConstPtr,std::pair<sensor_msgs::PointCloudConstPtr,sensor_msgs::PointCloudConstPtr> > > > measurements; // The measurement currently contains point and line features, plus image point features.
+        // IMU + (image + (event point features, event line features))
+
+        std::unique_lock<std::mutex> lk(m_buf);// Lock first, then release the lock when data is available.
+        con.wait(lk, [&]
+                 {
+            // return (measurements = getMeasurements()).size() != 0;// Wait until IMU and feature measurements are available.
+            // return (measurements = getMeasurements_pl()).size() != 0;
+            return (measurements = getMeasurements_pl_image_line_highfreq()).size() != 0;
+                 });
+        lk.unlock();// Unlock the data-buffer mutex so callbacks can add more data.
+
+        m_estimator.lock();// Run backend optimization; prevent conflicts with reset/restart.
+        for (auto &measurement : measurements) // Iterate over each image-IMU measurement pair.
+        {
+            // auto img_msg = measurement.second;
+            // IMU + (image + (event point features, event line features))
+            auto img_msg=measurement.second.first;// Image features.
+            auto point_and_line_msg = measurement.second.second;// Contains line and point features.
+            auto event_msg = point_and_line_msg.first;// Point-feature data.
+            auto line_msg = point_and_line_msg.second;// Line-feature data.
+        
+            // ROS_ERROR("The number of the event point:%d",event_msg->points.size());
+            // ROS_ERROR("The number of the event line:%d", line_msg->points.size());
+            // ROS_ERROR("The number of the image point:%d",img_msg->points.size());
+
+
+            // Process the IMU data first.
+            double dx = 0, dy = 0, dz = 0, rx = 0, ry = 0, rz = 0;
+            for (auto &imu_msg : measurement.first)// Iterate over the IMU messages.
+            {
+                double t = imu_msg->header.stamp.toSec();// IMU timestamp.
+                double line_t = line_msg->header.stamp.toSec() + estimator.td;// Line-feature timestamp plus td.
+                if (t <= line_t)// If the IMU timestamp is no later than the feature timestamp plus td.
+                { 
+                    if (current_time < 0)// On the first iteration.
+                        current_time = t;
+                    double dt = t - current_time;// Difference between the current and previous IMU timestamps.
+                    ROS_ASSERT(dt >= 0);
+                    current_time = t;
+                    dx = imu_msg->linear_acceleration.x;
+                    dy = imu_msg->linear_acceleration.y;
+                    dz = imu_msg->linear_acceleration.z;
+                    rx = imu_msg->angular_velocity.x;
+                    ry = imu_msg->angular_velocity.y;
+                    rz = imu_msg->angular_velocity.z;
+                    // dx = imu_msg->linear_acceleration.z;
+                    // dy = -imu_msg->linear_acceleration.x;
+                    // dz = -imu_msg->linear_acceleration.y;
+                    // rx = imu_msg->angular_velocity.z;
+                    // ry = -imu_msg->angular_velocity.x;
+                    // rz = -imu_msg->angular_velocity.y;
+                    // Compute IMU preintegration between frames: translation, rotation, velocity, and bias.
+                    // Propagate the latest system state with the IMU to initialize poses for visual triangulation and reprojection.
+                    estimator.processIMU(dt, Vector3d(dx, dy, dz), Vector3d(rx, ry, rz));// Pass the time interval and IMU data.
+                    //printf("imu: dt:%f a: %f %f %f w: %f %f %f\n",dt, dx, dy, dz, rx, ry, rz);
+
+                }
+                else // Linearly interpolate the final IMU sample.
+                {
+                    double dt_1 = line_t - current_time;
+                    double dt_2 = t - line_t;
+                    current_time = line_t;
+                    ROS_ASSERT(dt_1 >= 0);
+                    ROS_ASSERT(dt_2 >= 0);
+                    ROS_ASSERT(dt_1 + dt_2 > 0);
+                    double w1 = dt_2 / (dt_1 + dt_2);
+                    double w2 = dt_1 / (dt_1 + dt_2);
+                    dx = w1 * dx + w2 * imu_msg->linear_acceleration.x;
+                    dy = w1 * dy + w2 * imu_msg->linear_acceleration.y;
+                    dz = w1 * dz + w2 * imu_msg->linear_acceleration.z;
+                    rx = w1 * rx + w2 * imu_msg->angular_velocity.x;
+                    ry = w1 * ry + w2 * imu_msg->angular_velocity.y;
+                    rz = w1 * rz + w2 * imu_msg->angular_velocity.z;
+                    // dx = w1 * dx + w2 * imu_msg->linear_acceleration.z;
+                    // dy = w1 * dy + w2 * -imu_msg->linear_acceleration.x;
+                    // dz = w1 * dz + w2 * -imu_msg->linear_acceleration.y;
+                    // rx = w1 * rx + w2 * imu_msg->angular_velocity.z;
+                    // ry = w1 * ry + w2 * -imu_msg->angular_velocity.x;
+                    // rz = w1 * rz + w2 * -imu_msg->angular_velocity.y;
+                    estimator.processIMU(dt_1, Vector3d(dx, dy, dz), Vector3d(rx, ry, rz));
+                    //printf("dimu: dt:%f a: %f %f %f w: %f %f %f\n",dt_1, dx, dy, dz, rx, ry, rz);
+                }
+            }
+
+            // Set the relocalization frame.
+            sensor_msgs::PointCloudConstPtr relo_msg = NULL;
+            while (!relo_buf.empty())   // Get the latest loop-closure frame.
+            {
+                relo_msg = relo_buf.front();// Get the value at the front of the queue.
+                relo_buf.pop();// Remove the front element from the queue.
+            }
+            if (relo_msg != NULL)  // Valid loop-closure data is available.
+            {
+                vector<Vector3d> match_points; // Normalized coordinates and map-point IDs for the loop-closure frame.
+                double frame_stamp = relo_msg->header.stamp.toSec();
+                for (unsigned int i = 0; i < relo_msg->points.size(); i++)// Iterate over the feature points in relo_msg.
+                {
+                    Vector3d u_v_id;
+                    u_v_id.x() = relo_msg->points[i].x;
+                    u_v_id.y() = relo_msg->points[i].y;
+                    u_v_id.z() = relo_msg->points[i].z;
+                    match_points.push_back(u_v_id);
+                }
+
+                // Loop-closure pose: translation (x, y, z), rotation quaternion (w, x, y, z), and frame index.
+                Vector3d relo_t(relo_msg->channels[0].values[0], relo_msg->channels[0].values[1], relo_msg->channels[0].values[2]);
+                Quaterniond relo_q(relo_msg->channels[0].values[3], relo_msg->channels[0].values[4], relo_msg->channels[0].values[5], relo_msg->channels[0].values[6]);
+                Matrix3d relo_r = relo_q.toRotationMatrix();
+                int frame_index;
+                frame_index = relo_msg->channels[0].values[7];// Frame index.
+                estimator.setReloFrame(frame_stamp, frame_index, match_points, relo_t, relo_r);// Set the loop-closure frame.
+            }
+
+            ROS_DEBUG("processing vision data with stamp %f \n", line_msg->header.stamp.toSec());
+
+            // Process visual features.
+            // Extract point features from the current event frame.
+            TicToc t_s;
+            map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> event;// Feature-point ID -> feature-point data.
+            // if(event_msg!=NULL){
+            if(event_msg!=NULL){
+                for (unsigned int i = 0; i < event_msg->points.size(); i++)
+                {
+                    int v = event_msg->channels[0].values[i] + 0.5;
+                    int feature_id = v / NUM_OF_CAM;// Feature-point ID.
+                    int camera_id = v % NUM_OF_CAM;// Camera ID.
+                    double x = event_msg->points[i].x;// Undistorted normalized image coordinate.
+                    double y = event_msg->points[i].y;
+                    double z = event_msg->points[i].z;
+                    double p_u = event_msg->channels[1].values[i];// Feature-point pixel coordinate.
+                    double p_v = event_msg->channels[2].values[i];
+                    double velocity_x = event_msg->channels[3].values[i];// Feature-point velocity.
+                    double velocity_y = event_msg->channels[4].values[i];
+                    ROS_ASSERT(z == 1); // Check that the coordinate is normalized.
+                    Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
+                    xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
+                    event[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
+                }
+            }
+
+            // Extract image corner features.
+            map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> image;// Feature-point ID -> feature-point data.
+            if(img_msg!=NULL){
+                for (unsigned int i = 0; i < img_msg->points.size(); i++)
+                {
+                    int v = img_msg->channels[0].values[i] + 0.5;
+                    int feature_id = v / NUM_OF_CAM;
+                    int camera_id = v % NUM_OF_CAM;
+                    double x = img_msg->points[i].x;
+                    double y = img_msg->points[i].y;
+                    double z = img_msg->points[i].z;
+                    double p_u = img_msg->channels[1].values[i];
+                    double p_v = img_msg->channels[2].values[i];
+                    double velocity_x = img_msg->channels[3].values[i];
+                    double velocity_y = img_msg->channels[4].values[i];
+                    ROS_ASSERT(z == 1);
+                    Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
+                    xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
+                    image[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
+                }
+            }
+            
+            // Extract line features.
+            map<int, vector<pair<int, Vector4d>>> lines;
+            // if(line_msg!=NULL){
+            if(line_msg!=NULL){
+                for (unsigned int i = 0; i < line_msg->points.size(); i++)
+                {
+                    int v = line_msg->channels[0].values[i] + 0.5;
+                    // std::cout<< "receive id: " << v / NUM_OF_CAM << "\n";
+                    int feature_id = v / NUM_OF_CAM;
+                    int camera_id = v % NUM_OF_CAM;        // 被几号相机观测到的，如果是单目，camera_id = 0
+                    double x_startpoint = line_msg->points[i].x;
+                    double y_startpoint = line_msg->points[i].y;
+                    double x_endpoint = line_msg->channels[1].values[i];
+                    double y_endpoint = line_msg->channels[2].values[i];
+                    lines[feature_id].emplace_back(camera_id, Vector4d(x_startpoint, y_startpoint, x_endpoint, y_endpoint));//起始点、终止点
+                }
+            }
+
+            // ROS_ERROR("The number of the point:%d",img_msg->points.size());
+            // ROS_ERROR("The number of the line:%d",line_msg->points.size());
+
+            // ROS_ERROR("The number of the point:%d",image.size());
+            // ROS_ERROR("The number of the line:%d",lines.size());
+
+            // ROS_ERROR("****************************");
+            
+                        
+            estimator.processImageLineTime(image,event,lines, line_msg->header); // Process point features as well.
+
+
+             // Print statistics and publish topics.
+            double whole_t = t_s.toc();
+            printStatistics(estimator, whole_t);
+            std_msgs::Header header = line_msg->header;
+            header.frame_id = "world";
+
+            pubOdometry(estimator, header);
+            pubKeyPoses(estimator, header);
+            pubCameraPose(estimator, header);
+            pubPointCloud(estimator, header);// Publish the point cloud based on the estimator, including its pose.
+            pubTF(estimator, header);// Publish the camera-to-IMU extrinsic transform.
+            pubKeyframe(estimator);// Publish keyframe poses and map points.
+            if (relo_msg != NULL)
+                pubRelocalization(estimator);// Publish the loop-closure relocalization result.
+        }
+        m_estimator.unlock();
+        m_buf.lock();
+        m_state.lock();
+        if (estimator.solver_flag == Estimator::SolverFlag::NON_LINEAR)
+            update();
+        m_state.unlock();
+        m_buf.unlock();
+    }
+}
+
+
 //发布GT
 void GTCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
     pubGT(msg);
@@ -1065,7 +1373,7 @@ int main(int argc, char **argv)
 
     // std::thread measurement_process{process};//额外开了一个线程（核心处理线程）
     // std::thread measurement_process{process_pointline};//点特征与线特征的版本
-    std::thread measurement_process{process_pointline_image};//事件点特征与线特征+图像点特征的版本
+    std::thread measurement_process{process_point_line_highfreq_image};//事件点特征与线特征+图像点特征的版本
     ros::spin();
 
     return 0;

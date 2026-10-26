@@ -454,21 +454,21 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     }
 }
 
-//同时加入图像特征、事件点特征、事件线特征
+// Add image features, event point features, and event line features.
 bool FeatureManager::addFeatureCheckParallax(int frame_count, 
-                                             const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, //图像特征
-                                             const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, //事件点特征
-                                             const map<int, vector<pair<int, Vector4d>>> &lines, //事件线特征
+                                             const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, // Image features.
+                                             const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, // Event point features.
+                                             const map<int, vector<pair<int, Vector4d>>> &lines, // Event line features.
                                              double td)
 {
     // ROS_WARN("input feature------image feature: %d, event feature: %d, event line feature: %d", (int)image.size(), (int)event.size(), (int)lines.size());
     // ROS_WARN("useful------image feature: %d, event feature: %d, event line feature: %d", getFeatureCount(), getEventFeatureCount(), getLineFeatureCount());
-    // ROS_DEBUG("num of feature: %d", getFeatureCount()+getEventFeatureCount()+getLineFeatureCount()); // 已有的图像点特征+事件点特征与线特征的数目
+    // ROS_DEBUG("num of feature: %d", getFeatureCount()+getEventFeatureCount()+getLineFeatureCount()); // Number of existing image point, event point, and line features.
 
     double parallax_sum = 0;
     int parallax_num = 0;
     last_track_num = 0;
-    //遍历图像点特征
+    // Iterate over image point features.
     for (auto &id_pts : image)
     {
         FeaturePerFrame f_per_fra(id_pts.second[0].second, td);
@@ -491,60 +491,60 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count,
         }
     }
 
-    //遍历事件点特征
+    // Iterate over event point features.
     for (auto &id_pts : event)
     {
-        Event_FeaturePerFrame f_per_fra(id_pts.second[0].second, td);//当有image的时候，额外多定义了一个Event_FeaturePerFrame，实际内容跟原来的一样，只是名字变了
+        Event_FeaturePerFrame f_per_fra(id_pts.second[0].second, td);// When image features are present, use a separately named Event_FeaturePerFrame with the same data structure.
 
-        int feature_id = id_pts.first;//获取ID
+        int feature_id = id_pts.first;// Get the feature ID.
         auto it = find_if(Event_feature.begin(), Event_feature.end(), [feature_id](const Event_FeaturePerId &it)
                           {
-            return it.feature_id == feature_id; // 在feature里找id号为feature_id的特征
+            return it.feature_id == feature_id; // Find the feature with this ID.
                           });
 
-        if (it == Event_feature.end()) // 如果之前没存这个特征，说明是新的
+        if (it == Event_feature.end()) // If this feature has not been stored before, it is new.
         {
             Event_feature.push_back(Event_FeaturePerId(feature_id, frame_count));
             Event_feature.back().Event_feature_per_frame.push_back(f_per_fra);
         }
-        else if (it->feature_id == feature_id)//如果有找到，则增加观测数量
+        else if (it->feature_id == feature_id)// If found, add this observation.
         {
             it->Event_feature_per_frame.push_back(f_per_fra);
-            // last_track_num++;//是否需要事件点特征来辅助进行关键帧的选择？
+            // last_track_num++;// Should event point features also help select keyframes?
         }
     }
 
-    //遍历当前帧上的线特征
+    // Iterate over line features in the current frame.
     for (auto &id_line : lines) 
     {
         if (id_line.second.empty())
             continue;
-        lineFeaturePerFrame f_per_fra(id_line.second[0].second);  // 观测
+        lineFeaturePerFrame f_per_fra(id_line.second[0].second);  // Observation.
 
         int feature_id = id_line.first;
         //cout << "line id: "<< feature_id << "\n";
         auto it = find_if(linefeature.begin(), linefeature.end(), [feature_id](const lineFeaturePerId &it)
         {
-            return it.feature_id == feature_id;    // 在feature里找id号为feature_id的特征
+            return it.feature_id == feature_id;    // Find the feature with this ID.
         });
 
-        if (it == linefeature.end())  // 如果之前没存这个特征，说明是新的
+        if (it == linefeature.end())  // If this feature has not been stored before, it is new.
         {
             linefeature.push_back(lineFeaturePerId(feature_id, frame_count));
             linefeature.back().linefeature_per_frame.push_back(f_per_fra);
         }
-        else if (it->feature_id == feature_id)//如果存在则在相应id的线特征中添加当前帧的观测
+        else if (it->feature_id == feature_id)// If found, add the current-frame observation to this line feature.
         {
             it->linefeature_per_frame.push_back(f_per_fra);
-            it->all_obs_cnt++;//一共观测了多少次
-            // last_track_num++;//（检测视差加入线特征数量的统计）
+            it->all_obs_cnt++;// Total number of observations.
+            // last_track_num++;// Include line features in the parallax-based count?
         }
     }
 
     if (frame_count < 2 || last_track_num < 20)
         return true;
 
-    for (auto &it_per_id : feature)//图像特征(仅仅采用图像特征)
+    for (auto &it_per_id : feature)// Image features (image features only are used).
     {
         if (it_per_id.start_frame <= frame_count - 2 &&
             it_per_id.start_frame + int(it_per_id.feature_per_frame.size()) - 1 >= frame_count - 1)

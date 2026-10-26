@@ -443,9 +443,122 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     }
 }
 
-void Estimator::Setreo_processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, //图片特征
-                             const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, //事件点状特征
-                             const map<int, vector<pair<int, Vector4d>>> &lines,//事件线状特征
+
+// Image + event points + event lines.
+void Estimator::processImageLineTime(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, //图片特征
+                             const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, // Event point features.
+                             const map<int, vector<pair<int, Vector4d>>> &lines,// Event line features.
+                             const std_msgs::Header &line_header)
+{
+    ROS_DEBUG("new image coming ------------------------------------------");
+    ROS_DEBUG("Adding feature points %lu", image.size());
+    // if (f_manager.addFeatureCheckParallax(frame_count, image, td))// Select keyframes by adding features and checking parallax.
+    // if (f_manager.addFeatureCheckParallax(frame_count, image, lines, td))// Add point and line features and check parallax to decide which frame to marginalize.
+    if (f_manager.addFeatureCheckParallax(frame_count, image, event, lines, td))// Add point and line features and check parallax to decide which frame to marginalize.
+        marginalization_flag = MARGIN_OLD;
+    else
+        marginalization_flag = MARGIN_SECOND_NEW;
+
+    ROS_DEBUG("this frame is--------------------%s", marginalization_flag ? "reject" : "accept");
+    ROS_DEBUG("%s", marginalization_flag ? "Non-keyframe" : "Keyframe");
+    ROS_DEBUG("Solving %d", frame_count);
+    ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());
+    Headers[frame_count] = line_header;
+
+    ImageFrame imageframe(image, line_header.stamp.toSec());
+    imageframe.pre_integration = tmp_pre_integration;// IMU preintegration data for this interval.
+    all_image_frame.insert(make_pair(line_header.stamp.toSec(), imageframe));
+    tmp_pre_integration = new IntegrationBase{acc_0, gyr_0, Bas[frame_count], Bgs[frame_count]};
+
+    if(ESTIMATE_EXTRINSIC == 2)// Estimate the IMU-camera extrinsics online.
+    {
+        ROS_INFO("calibrating extrinsic param, rotation movement is needed");
+        if (frame_count != 0)
+        {
+            vector<pair<Vector3d, Vector3d>> corres = f_manager.getCorresponding(frame_count - 1, frame_count);
+            Matrix3d calib_ric;
+            if (initial_ex_rotation.CalibrationExRotation(corres, pre_integrations[frame_count]->delta_q, calib_ric))
+            {
+                ROS_WARN("initial extrinsic rotation calib success");
+                ROS_WARN_STREAM("initial extrinsic rotation: " << endl << calib_ric);
+                ric[0] = calib_ric;
+                RIC[0] = calib_ric;
+                ESTIMATE_EXTRINSIC = 1;
+            }
+        }
+    }
+
+    if (solver_flag == INITIAL)// Initialization phase.
+    {
+        if (frame_count == WINDOW_SIZE)
+        {
+            bool result = false;
+            if( ESTIMATE_EXTRINSIC != 2 && (line_header.stamp.toSec() - initial_timestamp) > 0.1)
+            {
+               result = initialStructure();// Align vision and IMU; estimate biases, gravity, velocity, and scale.
+            //    result=initialStructure_QPEP();
+               initial_timestamp = line_header.stamp.toSec();
+            }
+            if(result)
+            {
+                solver_flag = NON_LINEAR;
+                // solveOdometry();// Triangulate depth and solve VIO with nonlinear optimization.
+                // solveOdometry_withline();  // Includes line features.
+                solveOdometry_plevio();  // Image features + event point and line features.
+                slideWindow();// Slide the window.
+                f_manager.removeFailures();// Remove invalid map points (unlike Fusion, this does not remove outliers; consider adding that and evaluating the result).
+                ROS_INFO("Initialization finish!");
+                last_R = Rs[WINDOW_SIZE];// Get the latest pose in the sliding window.
+                last_P = Ps[WINDOW_SIZE];
+                last_R0 = Rs[0];// The oldest pose in the sliding window.
+                last_P0 = Ps[0];
+                
+            }
+            else
+                slideWindow();
+        }
+        else
+            frame_count++;
+    }
+    else// Nonlinear optimization phase.
+    {
+        TicToc t_solve;
+        // solveOdometry();
+        // solveOdometry_withline();  // Includes line features.
+        solveOdometry_plevio();  // Image features + event point and line features.
+
+        ROS_DEBUG("solver costs: %fms", t_solve.toc());
+
+        if (failureDetection())
+        { // Restart VIO if a failure is detected.
+            ROS_WARN("failure detection!");
+            failure_occur = 1;
+            clearState();
+            setParameter();
+            ROS_WARN("system reboot!");
+            return;
+        }
+
+        TicToc t_margin;
+        slideWindow();
+        f_manager.removeFailures();// Remove points whose depth estimation failed.
+        ROS_DEBUG("marginalization costs: %fms", t_margin.toc());
+        // prepare output of VINS
+        key_poses.clear();
+        for (int i = 0; i <= WINDOW_SIZE; i++)
+            key_poses.push_back(Ps[i]);
+
+        last_R = Rs[WINDOW_SIZE];
+        last_P = Ps[WINDOW_SIZE];
+        last_R0 = Rs[0];
+        last_P0 = Ps[0];
+    }
+}
+
+
+void Estimator::Setreo_processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, // Image features.
+                             const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, // Event point features.
+                             const map<int, vector<pair<int, Vector4d>>> &lines,// Event line features.
                              const std_msgs::Header &header)
 {
     ROS_DEBUG("new image coming ------------------------------------------");
