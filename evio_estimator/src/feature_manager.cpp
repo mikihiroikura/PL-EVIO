@@ -546,8 +546,15 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count,
 
     for (auto &it_per_id : feature)// Image features (image features only are used).
     {
-        if (it_per_id.start_frame <= frame_count - 2 &&
-            it_per_id.start_frame + int(it_per_id.feature_per_frame.size()) - 1 >= frame_count - 1)
+        const auto frame_i = find_if(it_per_id.feature_per_frame.begin(), it_per_id.feature_per_frame.end(),
+                                     [frame_count](const FeaturePerFrame &frame)
+                                     { return frame.frame_idx == frame_count - 2; });
+        const auto frame_j = find_if(it_per_id.feature_per_frame.begin(), it_per_id.feature_per_frame.end(),
+                                     [frame_count](const FeaturePerFrame &frame)
+                                     { return frame.frame_idx == frame_count - 1; });
+
+        if (frame_i != it_per_id.feature_per_frame.end() &&
+            frame_j != it_per_id.feature_per_frame.end())
         {
             parallax_sum += compensatedParallax2(it_per_id, frame_count);
             parallax_num++;
@@ -1580,6 +1587,10 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
                     it->estimated_depth = dep_j;
                 else
                     it->estimated_depth = INIT_DEPTH;
+                for (auto &it_per_frame : it->feature_per_frame)
+                {
+                    it_per_frame.frame_idx--;
+                }
             }
         }
         // remove tracking-lost feature after marginalize
@@ -1623,6 +1634,10 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
                     it->estimated_depth = dep_j;
                 else
                     it->estimated_depth = INIT_DEPTH;
+                for (auto &it_per_frame : it->feature_per_frame)
+                {
+                    it_per_frame.frame_idx--;
+                }
             }
         }
         // remove tracking-lost feature after marginalize
@@ -1666,6 +1681,10 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
                     it->estimated_depth = dep_j;
                 else
                     it->estimated_depth = INIT_DEPTH;
+                for (auto &it_per_frame : it->Event_feature_per_frame)
+                {
+                    it_per_frame.frame_idx--;
+                }
             }
         }
     }
@@ -1738,6 +1757,10 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
                 Vector3d tji = new_R.transpose() * (marg_P - new_P);
                 Vector6d plk_j = plk_to_pose(it->line_plucker, Rji, tji);
                 it->line_plucker = plk_j;
+                for (auto &it_per_frame : it->linefeature_per_frame)
+                {
+                    it_per_frame.frame_idx--;
+                }
             }
 //-----------------------
 /*
@@ -1798,6 +1821,12 @@ void FeatureManager::removeBack()
             it->feature_per_frame.erase(it->feature_per_frame.begin());
             if (it->feature_per_frame.size() == 0)
                 feature.erase(it);
+            else {
+                for (auto &it_per_frame : it->feature_per_frame)
+                {
+                    it_per_frame.frame_idx--;
+                }
+            }
         }
     }
 
@@ -1819,6 +1848,12 @@ void FeatureManager::removeBack()
             it->feature_per_frame.erase(it->feature_per_frame.begin());
             if (it->feature_per_frame.size() == 0)
                 stereo_feature.erase(it);
+            else {
+                for (auto &it_per_frame : it->feature_per_frame)
+                {
+                    it_per_frame.frame_idx--;
+                }
+            }
         }
     }
 
@@ -1840,6 +1875,12 @@ void FeatureManager::removeBack()
             it->Event_feature_per_frame.erase(it->Event_feature_per_frame.begin());
             if (it->Event_feature_per_frame.size() == 0)
                 Event_feature.erase(it);
+            else {
+                for (auto &it_per_frame : it->Event_feature_per_frame)
+                {
+                    it_per_frame.frame_idx--;
+                }
+            }
         }
     }
 
@@ -1864,17 +1905,25 @@ void FeatureManager::removeBack()
             it->linefeature_per_frame.erase(it->linefeature_per_frame.begin());  // 删掉特征ft在这个图像帧上的观测量
             if (it->linefeature_per_frame.size() == 0)                       // 如果没有其他图像帧能看到这个特征ft了，那就直接删掉它
                 linefeature.erase(it);
+            else {
+                for (auto &it_per_frame : it->linefeature_per_frame)
+                {
+                    it_per_frame.frame_idx--;
+                }
+            }
         }
     }
 }
 
 void FeatureManager::removeFront(int frame_count)
 {
-     // 对图像点特征进行处理
+    const int delete_idx = frame_count - 1;
+
+    // Remove the observation belonging to the marginalized frame, then shift
+    // only observations that were after it in the sliding window.
     for (auto it = feature.begin(), it_next = feature.begin(); it != feature.end(); it = it_next)
     {
         it_next++;
-
         if (it->start_frame == frame_count)
         {
             it->start_frame--;
@@ -1883,22 +1932,30 @@ void FeatureManager::removeFront(int frame_count)
                 it_per_frame.frame_idx--;
             }
         }
-        else
-        {
-            int j = WINDOW_SIZE - 1 - it->start_frame;
-            if (it->endFrame() < frame_count - 1)
-                continue;
-            it->feature_per_frame.erase(it->feature_per_frame.begin() + j);
-            if (it->feature_per_frame.size() == 0)
-                feature.erase(it);
+        else {
+            auto observation = find_if(it->feature_per_frame.begin(), it->feature_per_frame.end(),
+                                    [delete_idx](const FeaturePerFrame &frame)
+                                    { return frame.frame_idx == delete_idx; });
+            if (observation != it->feature_per_frame.end())
+            {
+                it->feature_per_frame.erase(observation);
+                if (it->feature_per_frame.empty())
+                {
+                    feature.erase(it);
+                    continue;
+                }
+            }
+            for (auto &frame : it->feature_per_frame){
+                if (frame.frame_idx > delete_idx)
+                    frame.frame_idx--;
+            }
         }
     }
 
-    //对于双目
+    // Stereo point features.
     for (auto it = stereo_feature.begin(), it_next = stereo_feature.begin(); it != stereo_feature.end(); it = it_next)
     {
         it_next++;
-
         if (it->start_frame == frame_count)
         {
             it->start_frame--;
@@ -1909,21 +1966,29 @@ void FeatureManager::removeFront(int frame_count)
         }
         else
         {
-            int j = WINDOW_SIZE - 1 - it->start_frame;
-            if (it->endFrame() < frame_count - 1)
-                continue;
-            it->feature_per_frame.erase(it->feature_per_frame.begin() + j);
-            if (it->feature_per_frame.size() == 0)
-                stereo_feature.erase(it);
+            auto observation = find_if(it->feature_per_frame.begin(), it->feature_per_frame.end(),
+                                    [delete_idx](const stereo_FeaturePerFrame &frame)
+                                    { return frame.frame_idx == delete_idx; });
+            if (observation != it->feature_per_frame.end())
+            {
+                it->feature_per_frame.erase(observation);
+                if (it->feature_per_frame.empty())
+                {
+                    stereo_feature.erase(it);
+                    continue;
+                }
+            }
+            for (auto &frame : it->feature_per_frame) {
+                if (frame.frame_idx > delete_idx)
+                    frame.frame_idx--;
+            }
         }
     }
 
-
-    // 对事件点特征进行处理
+    // Event point features.
     for (auto it = Event_feature.begin(), it_next = Event_feature.begin(); it != Event_feature.end(); it = it_next)
     {
         it_next++;
-
         if (it->start_frame == frame_count)
         {
             it->start_frame--;
@@ -1934,21 +1999,30 @@ void FeatureManager::removeFront(int frame_count)
         }
         else
         {
-            int j = WINDOW_SIZE - 1 - it->start_frame;
-            if (it->endFrame() < frame_count - 1)
-                continue;
-            it->Event_feature_per_frame.erase(it->Event_feature_per_frame.begin() + j);
-            if (it->Event_feature_per_frame.size() == 0)
-                Event_feature.erase(it);
+            auto observation = find_if(it->Event_feature_per_frame.begin(), it->Event_feature_per_frame.end(),
+                                    [delete_idx](const Event_FeaturePerFrame &frame)
+                                    { return frame.frame_idx == delete_idx; });
+            if (observation != it->Event_feature_per_frame.end())
+            {
+                it->Event_feature_per_frame.erase(observation);
+                if (it->Event_feature_per_frame.empty())
+                {
+                    Event_feature.erase(it);
+                    continue;
+                }
+            }
+            for (auto &frame : it->Event_feature_per_frame) {
+                if (frame.frame_idx > delete_idx)
+                    frame.frame_idx--;
+            }
         }
     }
 
-    // 对线特征进行处理
+    // Line features.
     for (auto it = linefeature.begin(), it_next = linefeature.begin(); it != linefeature.end(); it = it_next)
     {
         it_next++;
-
-        if (it->start_frame == frame_count)  // 由于要删去的是第frame_count-1帧，最新这一帧frame_count的id就变成了i-1
+        if (it->start_frame == frame_count)
         {
             it->start_frame--;
             for (auto &it_per_frame : it->linefeature_per_frame)
@@ -1958,12 +2032,22 @@ void FeatureManager::removeFront(int frame_count)
         }
         else
         {
-            int j = WINDOW_SIZE - 1 - it->start_frame;    // j指向第i-1帧
-            if (it->endFrame() < frame_count - 1)
-                continue;
-            it->linefeature_per_frame.erase(it->linefeature_per_frame.begin() + j);   // 删掉特征ft在这个图像帧上的观测量
-            if (it->linefeature_per_frame.size() == 0)                            // 如果没有其他图像帧能看到这个特征ft了，那就直接删掉它
-                linefeature.erase(it);
+            auto observation = find_if(it->linefeature_per_frame.begin(), it->linefeature_per_frame.end(),
+                                    [delete_idx](const lineFeaturePerFrame &frame)
+                                    { return frame.frame_idx == delete_idx; });
+            if (observation != it->linefeature_per_frame.end())
+            {
+                it->linefeature_per_frame.erase(observation);
+                if (it->linefeature_per_frame.empty())
+                {
+                    linefeature.erase(it);
+                    continue;
+                }
+            }
+            for (auto &frame : it->linefeature_per_frame) {
+                if (frame.frame_idx > delete_idx)
+                    frame.frame_idx--;
+            }
         }
     }
 }
@@ -1972,8 +2056,18 @@ double FeatureManager::compensatedParallax2(const FeaturePerId &it_per_id, int f
 {
     //check the second last frame is keyframe or not
     //parallax betwwen seconde last frame and third last frame
-    const FeaturePerFrame &frame_i = it_per_id.feature_per_frame[frame_count - 2 - it_per_id.start_frame];
-    const FeaturePerFrame &frame_j = it_per_id.feature_per_frame[frame_count - 1 - it_per_id.start_frame];
+    const auto frame_i_it = find_if(it_per_id.feature_per_frame.begin(), it_per_id.feature_per_frame.end(),
+                                    [frame_count](const FeaturePerFrame &frame)
+                                    { return frame.frame_idx == frame_count - 2; });
+    const auto frame_j_it = find_if(it_per_id.feature_per_frame.begin(), it_per_id.feature_per_frame.end(),
+                                    [frame_count](const FeaturePerFrame &frame)
+                                    { return frame.frame_idx == frame_count - 1; });
+    if (frame_i_it == it_per_id.feature_per_frame.end() ||
+        frame_j_it == it_per_id.feature_per_frame.end())
+        return 0.0;
+
+    const FeaturePerFrame &frame_i = *frame_i_it;
+    const FeaturePerFrame &frame_j = *frame_j_it;
 
     double ans = 0;
     Vector3d p_j = frame_j.point;
