@@ -867,7 +867,7 @@ bool Estimator::initialStructure()
         tmp_feature.id = it_per_id.feature_id;
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
             Vector3d pts_j = it_per_frame.point;
             tmp_feature.observation.push_back(make_pair(imu_j, Eigen::Vector2d{pts_j.x(), pts_j.y()}));
         }
@@ -1013,7 +1013,7 @@ bool Estimator::initialStructureStereo()
         tmp_feature.id = it_per_id.feature_id;
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
             Vector3d pts_j = it_per_frame.point;
             tmp_feature.observation.push_back(make_pair(imu_j, Eigen::Vector2d{pts_j.x(), pts_j.y()}));
             tmp_feature.observation_depth.push_back(make_pair(imu_j, it_per_frame.getDepth())); 
@@ -2199,7 +2199,7 @@ void Estimator::optimization()
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
             if (imu_i == imu_j)
             {
                 continue;
@@ -2342,7 +2342,7 @@ void Estimator::optimization()
 
                 for (auto &it_per_frame : it_per_id.feature_per_frame)
                 {
-                    imu_j++;
+                    imu_j = it_per_frame.frame_idx;
                     if (imu_i == imu_j)
                         continue;
 
@@ -2538,7 +2538,7 @@ void Estimator::optimizationwithLine()
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
             if (imu_i == imu_j)
             {
                 continue;
@@ -2591,7 +2591,7 @@ void Estimator::optimizationwithLine()
         // for (auto &it_per_frame : it_per_id.feature_per_frame)//遍历所有的特征
         for (auto &it_per_frame : it_per_id.linefeature_per_frame)//遍历所有线特征
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
             if (imu_i == imu_j)// 自己跟自己不能形成重投影
             {
                 // continue;
@@ -2725,7 +2725,7 @@ void Estimator::optimizationwithLine()
 
                 for (auto &it_per_frame : it_per_id.feature_per_frame)
                 {
-                    imu_j++;
+                    imu_j = it_per_frame.frame_idx;
                     if (imu_i == imu_j)
                         continue;
 
@@ -2768,7 +2768,7 @@ void Estimator::optimizationwithLine()
 
                 for (auto &it_per_frame : it_per_id.linefeature_per_frame)
                 {
-                    imu_j++;
+                    imu_j = it_per_frame.frame_idx;
 
                     std::vector<int> drop_set;
                     if(imu_i == imu_j)
@@ -2961,7 +2961,7 @@ void Estimator::optimization_plevio()
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
             if (imu_i == imu_j)
             {
                 continue;
@@ -3009,7 +3009,7 @@ void Estimator::optimization_plevio()
 
         for (auto &it_per_frame : it_per_id.Event_feature_per_frame)
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
             if (imu_i == imu_j)
             {
                 continue;
@@ -3053,7 +3053,7 @@ void Estimator::optimization_plevio()
         // for (auto &it_per_frame : it_per_id.feature_per_frame)//遍历所有的特征
         for (auto &it_per_frame : it_per_id.linefeature_per_frame)//遍历所有线特征
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
             if (imu_i == imu_j)// 自己跟自己不能形成重投影
             {
                 // continue;
@@ -3171,7 +3171,7 @@ void Estimator::optimization_plevio()
             }
         }
 
-        // 3. 最老帧上有很多特征观测约束(针对图像点特征)
+        // 3. There are numerous feature observation constraints on the oldest frame (pertaining to image point features).
         {
             int feature_index = -1;
             for (auto &it_per_id : f_manager.feature)
@@ -3190,7 +3190,7 @@ void Estimator::optimization_plevio()
 
                 for (auto &it_per_frame : it_per_id.feature_per_frame)
                 {
-                    imu_j++;
+                    imu_j = it_per_frame.frame_idx;
                     if (imu_i == imu_j)
                         continue;
 
@@ -3236,7 +3236,7 @@ void Estimator::optimization_plevio()
 
                 for (auto &it_per_frame : it_per_id.Event_feature_per_frame)
                 {
-                    imu_j++;
+                    imu_j = it_per_frame.frame_idx;
                     if (imu_i == imu_j)
                         continue;
 
@@ -3279,7 +3279,7 @@ void Estimator::optimization_plevio()
 
                 for (auto &it_per_frame : it_per_id.linefeature_per_frame)
                 {
-                    imu_j++;
+                    imu_j = it_per_frame.frame_idx;
 
                     std::vector<int> drop_set;
                     if(imu_i == imu_j)
@@ -3472,7 +3472,7 @@ void Estimator::optimizationStereo()
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
             if(imu_i != imu_j){
                 Vector3d pts_j = it_per_frame.point; 
                 ProjectionTwoFrameOneCamFactor *f_td = new ProjectionTwoFrameOneCamFactor(pts_i, pts_j, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocity,
@@ -3525,7 +3525,7 @@ void Estimator::optimizationStereo()
 
         for (auto &it_per_frame : it_per_id.Event_feature_per_frame)
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
             if (imu_i == imu_j)
             {
                 continue;
@@ -3569,7 +3569,7 @@ void Estimator::optimizationStereo()
         // for (auto &it_per_frame : it_per_id.feature_per_frame)//遍历所有的特征
         for (auto &it_per_frame : it_per_id.linefeature_per_frame)//遍历所有线特征
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
             if (imu_i == imu_j)// 自己跟自己不能形成重投影
             {
                 // continue;
@@ -3707,7 +3707,7 @@ void Estimator::optimizationStereo()
 
                 for (auto &it_per_frame : it_per_id.feature_per_frame)
                 {
-                    imu_j++;
+                    imu_j = it_per_frame.frame_idx;
 
                     if(imu_i != imu_j){
                         Vector3d pts_j = it_per_frame.point;
@@ -3746,7 +3746,7 @@ void Estimator::optimizationStereo()
 
                 for (auto &it_per_frame : it_per_id.Event_feature_per_frame)
                 {
-                    imu_j++;
+                    imu_j = it_per_frame.frame_idx;
                     if (imu_i == imu_j)
                         continue;
 
@@ -3789,7 +3789,7 @@ void Estimator::optimizationStereo()
 
                 for (auto &it_per_frame : it_per_id.linefeature_per_frame)
                 {
-                    imu_j++;
+                    imu_j = it_per_frame.frame_idx;
 
                     std::vector<int> drop_set;
                     if(imu_i == imu_j)
@@ -3959,7 +3959,7 @@ void  Estimator::onlyLineOpt()
         int imu_i = it_per_id.start_frame,imu_j = imu_i - 1;
         for (auto &it_per_frame : it_per_id.linefeature_per_frame)
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
             if (imu_i == imu_j)
             {
                 //continue;

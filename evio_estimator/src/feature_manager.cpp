@@ -210,23 +210,23 @@ double stereo_FeaturePerFrame::getDepth()
 
 int stereo_FeaturePerId::endFrame()//点特征的
 {
-    return start_frame + feature_per_frame.size() - 1;
+    return feature_per_frame.back().frame_idx;
 }
 
 int FeaturePerId::endFrame()//点特征的
 {
-    return start_frame + feature_per_frame.size() - 1;
+    return feature_per_frame.back().frame_idx;
 }
 
 int Event_FeaturePerId::endFrame()//事件点特征的
 {
-    return start_frame + Event_feature_per_frame.size() - 1;
+    return Event_feature_per_frame.back().frame_idx;
 }
 
 
 int lineFeaturePerId::endFrame()//线特征的
 {
-    return start_frame + linefeature_per_frame.size() - 1;
+    return linefeature_per_frame.back().frame_idx;
 }
 
 //*********************************************************************************************************
@@ -326,7 +326,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     last_track_num = 0;
     for (auto &id_pts : image)
     {
-        FeaturePerFrame f_per_fra(id_pts.second[0].second, td);
+        FeaturePerFrame f_per_fra(id_pts.second[0].second, td, frame_count);
 
         int feature_id = id_pts.first;
         auto it = find_if(feature.begin(), feature.end(), [feature_id](const FeaturePerId &it)
@@ -385,7 +385,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     //遍历点特征
     for (auto &id_pts : image)
     {
-        FeaturePerFrame f_per_fra(id_pts.second[0].second, td);
+        FeaturePerFrame f_per_fra(id_pts.second[0].second, td, frame_count);
 
         int feature_id = id_pts.first;
         auto it = find_if(feature.begin(), feature.end(), [feature_id](const FeaturePerId &it)
@@ -407,7 +407,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
 
     for (auto &id_line : lines)   //遍历当前帧上的线特征
     {
-        lineFeaturePerFrame f_per_fra(id_line.second[0].second);  // 观测
+        lineFeaturePerFrame f_per_fra(id_line.second[0].second, frame_count);  // 观测
 
         int feature_id = id_line.first;
         //cout << "line id: "<< feature_id << "\n";
@@ -471,7 +471,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count,
     // Iterate over image point features.
     for (auto &id_pts : image)
     {
-        FeaturePerFrame f_per_fra(id_pts.second[0].second, td);
+        FeaturePerFrame f_per_fra(id_pts.second[0].second, td, frame_count);
 
         int feature_id = id_pts.first;
         auto it = find_if(feature.begin(), feature.end(), [feature_id](const FeaturePerId &it)
@@ -494,7 +494,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count,
     // Iterate over event point features.
     for (auto &id_pts : event)
     {
-        Event_FeaturePerFrame f_per_fra(id_pts.second[0].second, td);// When image features are present, use a separately named Event_FeaturePerFrame with the same data structure.
+        Event_FeaturePerFrame f_per_fra(id_pts.second[0].second, td, frame_count);// When image features are present, use a separately named Event_FeaturePerFrame with the same data structure.
 
         int feature_id = id_pts.first;// Get the feature ID.
         auto it = find_if(Event_feature.begin(), Event_feature.end(), [feature_id](const Event_FeaturePerId &it)
@@ -519,7 +519,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count,
     {
         if (id_line.second.empty())
             continue;
-        lineFeaturePerFrame f_per_fra(id_line.second[0].second);  // Observation.
+        lineFeaturePerFrame f_per_fra(id_line.second[0].second, frame_count);  // Observation.
 
         int feature_id = id_line.first;
         //cout << "line id: "<< feature_id << "\n";
@@ -583,7 +583,7 @@ bool FeatureManager::stereo_addFeatureCheckParallax(int frame_count,
     //遍历图像点特征
     for (auto &id_pts : image)
     {
-        stereo_FeaturePerFrame f_per_fra(id_pts.second[0].second, td);
+        stereo_FeaturePerFrame f_per_fra(id_pts.second[0].second, td, frame_count);
         f_per_fra.feat_id = id_pts.first; 
         if(id_pts.second[0].first != 0)
             ROS_ERROR("what? second[0].first = %d", id_pts.second[0].first );
@@ -618,7 +618,7 @@ bool FeatureManager::stereo_addFeatureCheckParallax(int frame_count,
     //遍历事件点特征
     for (auto &id_pts : event)
     {
-        Event_FeaturePerFrame f_per_fra(id_pts.second[0].second, td);//当有image的时候，额外多定义了一个Event_FeaturePerFrame，实际内容跟原来的一样，只是名字变了
+        Event_FeaturePerFrame f_per_fra(id_pts.second[0].second, td, frame_count);//当有image的时候，额外多定义了一个Event_FeaturePerFrame，实际内容跟原来的一样，只是名字变了
 
         int feature_id = id_pts.first;//获取ID
         auto it = find_if(Event_feature.begin(), Event_feature.end(), [feature_id](const Event_FeaturePerId &it)
@@ -641,7 +641,7 @@ bool FeatureManager::stereo_addFeatureCheckParallax(int frame_count,
     //遍历当前帧上的线特征
     for (auto &id_line : lines) 
     {
-        lineFeaturePerFrame f_per_fra(id_line.second[0].second);  // 观测
+        lineFeaturePerFrame f_per_fra(id_line.second[0].second, frame_count);  // 观测
 
         int feature_id = id_line.first;
         //cout << "line id: "<< feature_id << "\n";
@@ -1077,7 +1077,7 @@ void FeatureManager::triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric
         Eigen::Vector3d ni;      // normal vector of plane    
         for (auto &it_per_frame : it_per_id.linefeature_per_frame)   // 遍历所有的观测， 注意 start_frame 也会被遍历
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
 
             if(imu_j == imu_i)   // 第一个观测是start frame 上
             {
@@ -1242,7 +1242,7 @@ void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
 
             Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];
             Eigen::Matrix3d R1 = Rs[imu_j] * ric[0];
@@ -1328,7 +1328,7 @@ void FeatureManager::stereo_triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d 
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
 
             Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];
             Eigen::Matrix3d R1 = Rs[imu_j] * ric[0];
@@ -1386,7 +1386,7 @@ void FeatureManager::Event_triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d r
 
         for (auto &it_per_frame : it_per_id.Event_feature_per_frame)
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
 
             Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];
             Eigen::Matrix3d R1 = Rs[imu_j] * ric[0];
@@ -1521,7 +1521,7 @@ void FeatureManager::removeLineOutlier(Vector3d Ps[], Vector3d tic[], Matrix3d r
         //std::cout<<"reprojection_error: \n";
         for (auto &it_per_frame : it_per_id->linefeature_per_frame)   // 遍历所有的观测， 注意 start_frame 也会被遍历
         {
-            imu_j++;
+            imu_j = it_per_frame.frame_idx;
 
             obs = it_per_frame.lineobs;
             Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];
@@ -1554,8 +1554,13 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
     {
         it_next++;
 
-        if (it->start_frame != 0)
+        if (it->start_frame != 0) {
             it->start_frame--;
+            for (auto &it_per_frame : it->feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
         else
         {
             Eigen::Vector3d uv_i = it->feature_per_frame[0].point;  
@@ -1592,8 +1597,13 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
     {
         it_next++;
 
-        if (it->start_frame != 0)
+        if (it->start_frame != 0) {
             it->start_frame--;
+            for (auto &it_per_frame : it->feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
         else
         {
             Eigen::Vector3d uv_i = it->feature_per_frame[0].point;  
@@ -1630,8 +1640,13 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
     {
         it_next++;
 
-        if (it->start_frame != 0)
+        if (it->start_frame != 0) {
             it->start_frame--;
+            for (auto &it_per_frame : it->Event_feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
         else
         {
             Eigen::Vector3d uv_i = it->Event_feature_per_frame[0].point;  
@@ -1664,6 +1679,10 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
         if (it->start_frame != 0)    // 如果特征不是在这帧上初始化的，那就不用管，只要管id--
         {
             it->start_frame--;
+            for (auto &it_per_frame : it->linefeature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
         }
         else
         {
@@ -1767,8 +1786,13 @@ void FeatureManager::removeBack()
     {
         it_next++;
 
-        if (it->start_frame != 0)
+        if (it->start_frame != 0) {
             it->start_frame--;
+            for (auto &it_per_frame : it->feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
         else
         {
             it->feature_per_frame.erase(it->feature_per_frame.begin());
@@ -1783,8 +1807,13 @@ void FeatureManager::removeBack()
     {
         it_next++;
 
-        if (it->start_frame != 0)
+        if (it->start_frame != 0) {
             it->start_frame--;
+            for (auto &it_per_frame : it->feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
         else
         {
             it->feature_per_frame.erase(it->feature_per_frame.begin());
@@ -1799,8 +1828,13 @@ void FeatureManager::removeBack()
     {
         it_next++;
 
-        if (it->start_frame != 0)
+        if (it->start_frame != 0) {
             it->start_frame--;
+            for (auto &it_per_frame : it->Event_feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
         else
         {
             it->Event_feature_per_frame.erase(it->Event_feature_per_frame.begin());
@@ -1818,8 +1852,13 @@ void FeatureManager::removeBack()
 
         // 如果这个特征不是在窗口里最老关键帧上观测到的，由于窗口里移除掉了一个帧，所有其他特征对应的初始化帧id都要减1左移
         // 例如： 窗口里有 0,1,2,3,4 一共5个关键帧，特征f2在第2帧上三角化的， 移除掉第0帧以后， 第2帧在窗口里的id就左移变成了第1帧，这是很f2的start_frame对应减1
-        if (it->start_frame != 0)
+        if (it->start_frame != 0) {
             it->start_frame--;
+            for (auto &it_per_frame : it->linefeature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
         else
         {
             it->linefeature_per_frame.erase(it->linefeature_per_frame.begin());  // 删掉特征ft在这个图像帧上的观测量
@@ -1839,6 +1878,10 @@ void FeatureManager::removeFront(int frame_count)
         if (it->start_frame == frame_count)
         {
             it->start_frame--;
+            for (auto &it_per_frame : it->feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
         }
         else
         {
@@ -1859,6 +1902,10 @@ void FeatureManager::removeFront(int frame_count)
         if (it->start_frame == frame_count)
         {
             it->start_frame--;
+            for (auto &it_per_frame : it->feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
         }
         else
         {
@@ -1880,6 +1927,10 @@ void FeatureManager::removeFront(int frame_count)
         if (it->start_frame == frame_count)
         {
             it->start_frame--;
+            for (auto &it_per_frame : it->Event_feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
         }
         else
         {
@@ -1900,6 +1951,10 @@ void FeatureManager::removeFront(int frame_count)
         if (it->start_frame == frame_count)  // 由于要删去的是第frame_count-1帧，最新这一帧frame_count的id就变成了i-1
         {
             it->start_frame--;
+            for (auto &it_per_frame : it->linefeature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
         }
         else
         {

@@ -26,7 +26,7 @@ enum DPT_TYPE
 class stereo_FeaturePerFrame
 {
   public:
-    stereo_FeaturePerFrame(const Eigen::Matrix<double, 7, 1> &_point, double td)
+    stereo_FeaturePerFrame(const Eigen::Matrix<double, 7, 1> &_point, double td, int _frame_idx)
     {
         point.x() = _point(0);
         point.y() = _point(1);
@@ -37,6 +37,7 @@ class stereo_FeaturePerFrame
         velocity.x() = _point(5); 
         velocity.y() = _point(6); 
         cur_td = td;
+        frame_idx = _frame_idx;
         is_stereo = false;
         dpt = -1; 
         gc_succeed =false; 
@@ -80,7 +81,8 @@ class stereo_FeaturePerFrame
     double dep_gradient;
     bool is_stereo; 
     double dpt; 
-    int feat_id; 
+    int feat_id;
+    int frame_idx; // frame index in the sliding window
 };
 
 class stereo_FeaturePerId
@@ -112,7 +114,7 @@ class stereo_FeaturePerId
 class FeaturePerFrame//特征在每个观测图像中的信息
 {
   public:
-    FeaturePerFrame(const Eigen::Matrix<double, 7, 1> &_point, double td)
+    FeaturePerFrame(const Eigen::Matrix<double, 7, 1> &_point, double td, int _frame_idx)
     {
         point.x() = _point(0);
         point.y() = _point(1);
@@ -122,6 +124,7 @@ class FeaturePerFrame//特征在每个观测图像中的信息
         velocity.x() = _point(5); 
         velocity.y() = _point(6); 
         cur_td = td;
+        frame_idx = _frame_idx;
     }
     double cur_td;
     Vector3d point;
@@ -133,6 +136,7 @@ class FeaturePerFrame//特征在每个观测图像中的信息
     MatrixXd A;
     VectorXd b;
     double dep_gradient;
+    int frame_idx; // frame index in the sliding window
 };
 
 class FeaturePerId//每个特征，在不同观测图像中的信息
@@ -163,7 +167,7 @@ class FeaturePerId//每个特征，在不同观测图像中的信息
 class Event_FeaturePerFrame
 {
   public:
-    Event_FeaturePerFrame(const Eigen::Matrix<double, 7, 1> &_point, double td)
+    Event_FeaturePerFrame(const Eigen::Matrix<double, 7, 1> &_point, double td, int _frame_idx)
     {
         point.x() = _point(0);
         point.y() = _point(1);
@@ -173,6 +177,7 @@ class Event_FeaturePerFrame
         velocity.x() = _point(5); 
         velocity.y() = _point(6); 
         cur_td = td;
+        frame_idx = _frame_idx;
     }
     double cur_td;
     Vector3d point;
@@ -184,6 +189,7 @@ class Event_FeaturePerFrame
     MatrixXd A;
     VectorXd b;
     double dep_gradient;
+    int frame_idx; // frame index in the sliding window
 };
 
 class Event_FeaturePerId
@@ -214,14 +220,16 @@ class Event_FeaturePerId
 class lineFeaturePerFrame
 {
 public:
-    lineFeaturePerFrame(const Vector4d &line)
+    lineFeaturePerFrame(const Vector4d &line, int _frame_idx)
     {
         lineobs = line;//前面插入的时候为Vector4d(x_startpoint, y_startpoint, x_endpoint, y_endpoint)
+        frame_idx = _frame_idx;
     }
-    lineFeaturePerFrame(const Vector8d &line)
+    lineFeaturePerFrame(const Vector8d &line, int _frame_idx)
     {
         lineobs = line.head<4>();
         lineobs_R = line.tail<4>();
+        frame_idx = _frame_idx;
     }
     Vector4d lineobs;   // (应该是存放了线对应的四个点的值)每一帧上的观测
     Vector4d lineobs_R;
@@ -231,6 +239,7 @@ public:
     MatrixXd A;
     VectorXd b;
     double dep_gradient;
+    int frame_idx; // frame index in the sliding window
 };
 
 class lineFeaturePerId
