@@ -313,7 +313,8 @@ class FeatureManager
                                   const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, 
                                   const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, 
                                   const map<int, vector<pair<int, Vector4d>>> &lines, 
-                                  double td);
+                                  double td,
+                                  bool image_updated = true);
     //双目
     bool stereo_addFeatureCheckParallax( int frame_count, 
                                   const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, 
@@ -346,6 +347,7 @@ class FeatureManager
     void removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P, Eigen::Matrix3d new_R, Eigen::Vector3d new_P);
     void removeBack();
     void removeFront(int frame_count);
+    void removeFront(int frame_count, int delete_idx);
     void removeOutlier();
     list<FeaturePerId> feature;//点特征
     list<stereo_FeaturePerId> stereo_feature;//双目情况下的图像点特征

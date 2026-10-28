@@ -86,6 +86,7 @@ class Estimator
 
     void slideWindow();
     void slideWindowNew();
+    void slideWindowNew(int delete_idx);
     void slideWindowOld();
 
     void optimization();//仅仅针对点特征进行优化

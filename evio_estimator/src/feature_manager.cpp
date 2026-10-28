@@ -459,7 +459,8 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count,
                                              const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, // Image features.
                                              const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, // Event point features.
                                              const map<int, vector<pair<int, Vector4d>>> &lines, // Event line features.
-                                             double td)
+                                             double td,
+                                             bool image_updated)
 {
     // ROS_WARN("input feature------image feature: %d, event feature: %d, event line feature: %d", (int)image.size(), (int)event.size(), (int)lines.size());
     // ROS_WARN("useful------image feature: %d, event feature: %d, event line feature: %d", getFeatureCount(), getEventFeatureCount(), getLineFeatureCount());
@@ -541,24 +542,43 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count,
         }
     }
 
-    if (frame_count < 2 || last_track_num < 20)
+    // true -> marginalize oldest; false -> marginalize second-newest.
+    // A line/event-only tick has no new image observations.
+    if (!image_updated)
+        return true;
+
+    // Find the second- and third-newest observed image frame indices across
+    // all feature tracks. Image observations are sparse in the 100 Hz window.
+    int second_newest_frame_idx = -1;
+    int third_newest_frame_idx = -1;
+    for (const auto &it_per_id : feature)
+    {
+        for (const auto &observation : it_per_id.feature_per_frame)
+        {
+            const int observed_frame_idx = observation.frame_idx;
+            if (observed_frame_idx >= frame_count)
+                continue;
+
+            if (observed_frame_idx > second_newest_frame_idx)
+            {
+                third_newest_frame_idx = second_newest_frame_idx;
+                second_newest_frame_idx = observed_frame_idx;
+            }
+            else if (observed_frame_idx < second_newest_frame_idx &&
+                     observed_frame_idx > third_newest_frame_idx)
+            {
+                third_newest_frame_idx = observed_frame_idx;
+            }
+        }
+    }
+
+    if (second_newest_frame_idx < 0)
         return true;
 
     for (auto &it_per_id : feature)// Image features (image features only are used).
     {
-        const auto frame_i = find_if(it_per_id.feature_per_frame.begin(), it_per_id.feature_per_frame.end(),
-                                     [frame_count](const FeaturePerFrame &frame)
-                                     { return frame.frame_idx == frame_count - 2; });
-        const auto frame_j = find_if(it_per_id.feature_per_frame.begin(), it_per_id.feature_per_frame.end(),
-                                     [frame_count](const FeaturePerFrame &frame)
-                                     { return frame.frame_idx == frame_count - 1; });
-
-        if (frame_i != it_per_id.feature_per_frame.end() &&
-            frame_j != it_per_id.feature_per_frame.end())
-        {
-            parallax_sum += compensatedParallax2(it_per_id, frame_count);
-            parallax_num++;
-        }
+        parallax_sum += compensatedParallax3(it_per_id, third_newest_frame_idx, second_newest_frame_idx);
+        parallax_num++;
     }
 
     if (parallax_num == 0)
@@ -2052,6 +2072,141 @@ void FeatureManager::removeFront(int frame_count)
     }
 }
 
+void FeatureManager::removeFront(int frame_count, int delete_idx)
+{
+    // Remove the observation belonging to the marginalized frame, then shift
+    // only observations that were after it in the sliding window.
+    for (auto it = feature.begin(), it_next = feature.begin(); it != feature.end(); it = it_next)
+    {
+        it_next++;
+        if (it->start_frame == frame_count)
+        {
+            it->start_frame--;
+            for (auto &it_per_frame : it->feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
+        else {
+            auto observation = find_if(it->feature_per_frame.begin(), it->feature_per_frame.end(),
+                                    [delete_idx](const FeaturePerFrame &frame)
+                                    { return frame.frame_idx == delete_idx; });
+            if (observation != it->feature_per_frame.end())
+            {
+                it->feature_per_frame.erase(observation);
+                if (it->feature_per_frame.empty())
+                {
+                    feature.erase(it);
+                    continue;
+                }
+            }
+            for (auto &frame : it->feature_per_frame){
+                if (frame.frame_idx > delete_idx)
+                    frame.frame_idx--;
+            }
+        }
+    }
+
+    // Stereo point features.
+    for (auto it = stereo_feature.begin(), it_next = stereo_feature.begin(); it != stereo_feature.end(); it = it_next)
+    {
+        it_next++;
+        if (it->start_frame == frame_count)
+        {
+            it->start_frame--;
+            for (auto &it_per_frame : it->feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
+        else
+        {
+            auto observation = find_if(it->feature_per_frame.begin(), it->feature_per_frame.end(),
+                                    [delete_idx](const stereo_FeaturePerFrame &frame)
+                                    { return frame.frame_idx == delete_idx; });
+            if (observation != it->feature_per_frame.end())
+            {
+                it->feature_per_frame.erase(observation);
+                if (it->feature_per_frame.empty())
+                {
+                    stereo_feature.erase(it);
+                    continue;
+                }
+            }
+            for (auto &frame : it->feature_per_frame) {
+                if (frame.frame_idx > delete_idx)
+                    frame.frame_idx--;
+            }
+        }
+    }
+
+    // Event point features.
+    for (auto it = Event_feature.begin(), it_next = Event_feature.begin(); it != Event_feature.end(); it = it_next)
+    {
+        it_next++;
+        if (it->start_frame == frame_count)
+        {
+            it->start_frame--;
+            for (auto &it_per_frame : it->Event_feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
+        else
+        {
+            auto observation = find_if(it->Event_feature_per_frame.begin(), it->Event_feature_per_frame.end(),
+                                    [delete_idx](const Event_FeaturePerFrame &frame)
+                                    { return frame.frame_idx == delete_idx; });
+            if (observation != it->Event_feature_per_frame.end())
+            {
+                it->Event_feature_per_frame.erase(observation);
+                if (it->Event_feature_per_frame.empty())
+                {
+                    Event_feature.erase(it);
+                    continue;
+                }
+            }
+            for (auto &frame : it->Event_feature_per_frame) {
+                if (frame.frame_idx > delete_idx)
+                    frame.frame_idx--;
+            }
+        }
+    }
+
+    // Line features.
+    for (auto it = linefeature.begin(), it_next = linefeature.begin(); it != linefeature.end(); it = it_next)
+    {
+        it_next++;
+        if (it->start_frame == frame_count)
+        {
+            it->start_frame--;
+            for (auto &it_per_frame : it->linefeature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
+        else
+        {
+            auto observation = find_if(it->linefeature_per_frame.begin(), it->linefeature_per_frame.end(),
+                                    [delete_idx](const lineFeaturePerFrame &frame)
+                                    { return frame.frame_idx == delete_idx; });
+            if (observation != it->linefeature_per_frame.end())
+            {
+                it->linefeature_per_frame.erase(observation);
+                if (it->linefeature_per_frame.empty())
+                {
+                    linefeature.erase(it);
+                    continue;
+                }
+            }
+            for (auto &frame : it->linefeature_per_frame) {
+                if (frame.frame_idx > delete_idx)
+                    frame.frame_idx--;
+            }
+        }
+    }
+}
+
 double FeatureManager::compensatedParallax2(const FeaturePerId &it_per_id, int frame_count)
 {
     //check the second last frame is keyframe or not
@@ -2096,6 +2251,53 @@ double FeatureManager::compensatedParallax2(const FeaturePerId &it_per_id, int f
 
     return ans;
 }
+
+
+double FeatureManager::compensatedParallax3(const FeaturePerId &it_per_id, int frame_idx_i, int frame_idx_j)
+{
+    //check the second last frame is keyframe or not
+    //parallax betwwen seconde last frame and third last frame
+    const auto frame_i_it = find_if(it_per_id.feature_per_frame.begin(), it_per_id.feature_per_frame.end(),
+                                    [frame_count](const FeaturePerFrame &frame)
+                                    { return frame.frame_idx == frame_idx_i; });
+    const auto frame_j_it = find_if(it_per_id.feature_per_frame.begin(), it_per_id.feature_per_frame.end(),
+                                    [frame_count](const FeaturePerFrame &frame)
+                                    { return frame.frame_idx == frame_idx_j; });
+    if (frame_i_it == it_per_id.feature_per_frame.end() ||
+        frame_j_it == it_per_id.feature_per_frame.end())
+        return 0.0;
+
+    const FeaturePerFrame &frame_i = *frame_i_it;
+    const FeaturePerFrame &frame_j = *frame_j_it;
+
+    double ans = 0;
+    Vector3d p_j = frame_j.point;
+
+    double u_j = p_j(0);
+    double v_j = p_j(1);
+
+    Vector3d p_i = frame_i.point;
+    Vector3d p_i_comp;
+
+    //int r_i = frame_count - 2;
+    //int r_j = frame_count - 1;
+    //p_i_comp = ric[camera_id_j].transpose() * Rs[r_j].transpose() * Rs[r_i] * ric[camera_id_i] * p_i;
+    p_i_comp = p_i;
+    double dep_i = p_i(2);
+    double u_i = p_i(0) / dep_i;
+    double v_i = p_i(1) / dep_i;
+    double du = u_i - u_j, dv = v_i - v_j;
+
+    double dep_i_comp = p_i_comp(2);
+    double u_i_comp = p_i_comp(0) / dep_i_comp;
+    double v_i_comp = p_i_comp(1) / dep_i_comp;
+    double du_comp = u_i_comp - u_j, dv_comp = v_i_comp - v_j;
+
+    ans = max(ans, sqrt(min(du * du + dv * dv, du_comp * du_comp + dv_comp * dv_comp)));
+
+    return ans;
+}
+
 
 double FeatureManager::compensatedParallax2(const Event_FeaturePerId &it_per_id, int frame_count)
 {
