@@ -90,6 +90,51 @@ void Estimator::clearState()
     drift_correct_t = Vector3d::Zero();
 }
 
+void Estimator::startHighRateWindow()
+{
+    for (auto &frame : all_image_frame)
+    {
+        delete frame.second.pre_integration;
+        frame.second.pre_integration = nullptr;
+    }
+    all_image_frame.clear();
+
+    const int first_high_rate_frame = INIT_WINDOW_SIZE + 1;
+    for (int i = first_high_rate_frame; i <= WINDOW_SIZE; ++i)
+    {
+        Ps[i] = Ps[INIT_WINDOW_SIZE];
+        Vs[i] = Vs[INIT_WINDOW_SIZE];
+        Rs[i] = Rs[INIT_WINDOW_SIZE];
+        Bas[i] = Bas[INIT_WINDOW_SIZE];
+        Bgs[i] = Bgs[INIT_WINDOW_SIZE];
+    }
+    frame_count = first_high_rate_frame;
+    last_R = Rs[INIT_WINDOW_SIZE];
+    last_P = Ps[INIT_WINDOW_SIZE];
+}
+
+bool Estimator::advanceHighRateWindow()
+{
+    if (frame_count >= WINDOW_SIZE)
+        return false;
+
+    const int next_frame = frame_count + 1;
+    Ps[next_frame] = Ps[frame_count];
+    Vs[next_frame] = Vs[frame_count];
+    Rs[next_frame] = Rs[frame_count];
+    Bas[next_frame] = Bas[frame_count];
+    Bgs[next_frame] = Bgs[frame_count];
+
+    // Keep the published endpoint current while the 100 Hz window fills.
+    Ps[WINDOW_SIZE] = Ps[frame_count];
+    Vs[WINDOW_SIZE] = Vs[frame_count];
+    Rs[WINDOW_SIZE] = Rs[frame_count];
+    last_R = Rs[frame_count];
+    last_P = Ps[frame_count];
+    frame_count = next_frame;
+    return true;
+}
+
 void Estimator::processIMU(double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity)
 {
     if (!first_imu)
@@ -142,9 +187,12 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());
     Headers[frame_count] = header;
 
-    ImageFrame imageframe(image, header.stamp.toSec());
-    imageframe.pre_integration = tmp_pre_integration;//这段时间IMU预积分的信息
-    all_image_frame.insert(make_pair(header.stamp.toSec(), imageframe));
+    if (solver_flag == INITIAL)
+    {
+        ImageFrame imageframe(image, header.stamp.toSec());
+        imageframe.pre_integration = tmp_pre_integration;//这段时间IMU预积分的信息
+        all_image_frame.insert(make_pair(header.stamp.toSec(), imageframe));
+    }
     tmp_pre_integration = new IntegrationBase{acc_0, gyr_0, Bas[frame_count], Bgs[frame_count]};
 
     if(ESTIMATE_EXTRINSIC == 2)//自主估计IMU与camera的外参
@@ -167,7 +215,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
 
     if (solver_flag == INITIAL)//初始化过程
     {
-        if (frame_count == WINDOW_SIZE)
+        if (frame_count == INIT_WINDOW_SIZE)
         {
             bool result = false;
             if( ESTIMATE_EXTRINSIC != 2 && (header.stamp.toSec() - initial_timestamp) > 0.1)
@@ -178,12 +226,9 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
             if(result)
             {
                 solver_flag = NON_LINEAR;
-                solveOdometry();//三角化求深度+非线性优化求解VIO
-                slideWindow();//滑动窗口
-                f_manager.removeFailures();// 移除无效地图点  （没有fusion中的去除outliers，是否可以加上看看效果？）
+                startHighRateWindow();
+                f_manager.removeFailures();
                 ROS_INFO("Initialization finish!");
-                last_R = Rs[WINDOW_SIZE];//获取滑动窗口内最新的位置
-                last_P = Ps[WINDOW_SIZE];
                 last_R0 = Rs[0];// 滑窗里最老的位姿
                 last_P0 = Ps[0];
                 
@@ -196,6 +241,8 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     }
     else//非线性优化过程
     {
+        if (advanceHighRateWindow())
+            return;
         TicToc t_solve;
         solveOdometry();
         ROS_DEBUG("solver costs: %fms", t_solve.toc());
@@ -245,9 +292,12 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());
     Headers[frame_count] = header;
 
-    ImageFrame imageframe(image, header.stamp.toSec());
-    imageframe.pre_integration = tmp_pre_integration;//这段时间IMU预积分的信息
-    all_image_frame.insert(make_pair(header.stamp.toSec(), imageframe));
+    if (solver_flag == INITIAL)
+    {
+        ImageFrame imageframe(image, header.stamp.toSec());
+        imageframe.pre_integration = tmp_pre_integration;//这段时间IMU预积分的信息
+        all_image_frame.insert(make_pair(header.stamp.toSec(), imageframe));
+    }
     tmp_pre_integration = new IntegrationBase{acc_0, gyr_0, Bas[frame_count], Bgs[frame_count]};
 
     if(ESTIMATE_EXTRINSIC == 2)//自主估计IMU与camera的外参
@@ -270,7 +320,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
 
     if (solver_flag == INITIAL)//初始化过程
     {
-        if (frame_count == WINDOW_SIZE)
+        if (frame_count == INIT_WINDOW_SIZE)
         {
             bool result = false;
             if( ESTIMATE_EXTRINSIC != 2 && (header.stamp.toSec() - initial_timestamp) > 0.1)
@@ -281,13 +331,9 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
             if(result)
             {
                 solver_flag = NON_LINEAR;
-                // solveOdometry();//三角化求深度+非线性优化求解VIO
-                solveOdometry_withline();  //(加入了线特征了) 
-                slideWindow();//滑动窗口
-                f_manager.removeFailures();// 移除无效地图点  （没有fusion中的去除outliers，是否可以加上看看效果？）
+                startHighRateWindow();
+                f_manager.removeFailures();
                 ROS_INFO("Initialization finish!");
-                last_R = Rs[WINDOW_SIZE];//获取滑动窗口内最新的位置
-                last_P = Ps[WINDOW_SIZE];
                 last_R0 = Rs[0];// 滑窗里最老的位姿
                 last_P0 = Ps[0];
                 
@@ -300,6 +346,8 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     }
     else//非线性优化过程
     {
+        if (advanceHighRateWindow())
+            return;
         TicToc t_solve;
         // solveOdometry();
         solveOdometry_withline();  //(加入了线特征了) 
@@ -353,9 +401,12 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());
     Headers[frame_count] = header;
 
-    ImageFrame imageframe(image, header.stamp.toSec());
-    imageframe.pre_integration = tmp_pre_integration;//这段时间IMU预积分的信息
-    all_image_frame.insert(make_pair(header.stamp.toSec(), imageframe));
+    if (solver_flag == INITIAL)
+    {
+        ImageFrame imageframe(image, header.stamp.toSec());
+        imageframe.pre_integration = tmp_pre_integration;//这段时间IMU预积分的信息
+        all_image_frame.insert(make_pair(header.stamp.toSec(), imageframe));
+    }
     tmp_pre_integration = new IntegrationBase{acc_0, gyr_0, Bas[frame_count], Bgs[frame_count]};
 
     if(ESTIMATE_EXTRINSIC == 2)//自主估计IMU与camera的外参
@@ -378,7 +429,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
 
     if (solver_flag == INITIAL)//初始化过程
     {
-        if (frame_count == WINDOW_SIZE)
+        if (frame_count == INIT_WINDOW_SIZE)
         {
             bool result = false;
             if( ESTIMATE_EXTRINSIC != 2 && (header.stamp.toSec() - initial_timestamp) > 0.1)
@@ -390,14 +441,9 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
             if(result)
             {
                 solver_flag = NON_LINEAR;
-                // solveOdometry();//三角化求深度+非线性优化求解VIO
-                // solveOdometry_withline();  //(加入了线特征了) 
-                solveOdometry_plevio();  //(图像特征+事件点线特征) 
-                slideWindow();//滑动窗口
-                f_manager.removeFailures();// 移除无效地图点  （没有fusion中的去除outliers，是否可以加上看看效果？）
+                startHighRateWindow();
+                f_manager.removeFailures();
                 ROS_INFO("Initialization finish!");
-                last_R = Rs[WINDOW_SIZE];//获取滑动窗口内最新的位置
-                last_P = Ps[WINDOW_SIZE];
                 last_R0 = Rs[0];// 滑窗里最老的位姿
                 last_P0 = Ps[0];
                 
@@ -410,6 +456,8 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     }
     else//非线性优化过程
     {
+        if (advanceHighRateWindow())
+            return;
         TicToc t_solve;
         // solveOdometry();
         // solveOdometry_withline();  //(加入了线特征了) 
@@ -448,8 +496,14 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
 void Estimator::processImageLineTime(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, //图片特征
                              const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, // Event point features.
                              const map<int, vector<pair<int, Vector4d>>> &lines,// Event line features.
-                             const std_msgs::Header &line_header)
+                             const std_msgs::Header &line_header,
+                             bool has_frame_image)
 {
+    // Initialization/SFM uses only actual 20 Hz frame messages. Do not infer
+    // frame presence from the feature map, which can be empty for a valid image.
+    if (solver_flag == INITIAL && !has_frame_image)
+        return;
+
     ROS_DEBUG("new image coming ------------------------------------------");
     ROS_DEBUG("Adding feature points %lu", image.size());
     // if (f_manager.addFeatureCheckParallax(frame_count, image, td))// Select keyframes by adding features and checking parallax.
@@ -465,9 +519,12 @@ void Estimator::processImageLineTime(const map<int, vector<pair<int, Eigen::Matr
     ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());
     Headers[frame_count] = line_header;
 
-    ImageFrame imageframe(image, line_header.stamp.toSec());
-    imageframe.pre_integration = tmp_pre_integration;// IMU preintegration data for this interval.
-    all_image_frame.insert(make_pair(line_header.stamp.toSec(), imageframe));
+    if (solver_flag == INITIAL)
+    {
+        ImageFrame imageframe(image, line_header.stamp.toSec());
+        imageframe.pre_integration = tmp_pre_integration;// IMU preintegration data for this interval.
+        all_image_frame.insert(make_pair(line_header.stamp.toSec(), imageframe));
+    }
     tmp_pre_integration = new IntegrationBase{acc_0, gyr_0, Bas[frame_count], Bgs[frame_count]};
 
     if(ESTIMATE_EXTRINSIC == 2)// Estimate the IMU-camera extrinsics online.
@@ -490,7 +547,7 @@ void Estimator::processImageLineTime(const map<int, vector<pair<int, Eigen::Matr
 
     if (solver_flag == INITIAL)// Initialization phase.
     {
-        if (frame_count == WINDOW_SIZE)
+        if (frame_count == INIT_WINDOW_SIZE)
         {
             bool result = false;
             if( ESTIMATE_EXTRINSIC != 2 && (line_header.stamp.toSec() - initial_timestamp) > 0.1)
@@ -502,14 +559,9 @@ void Estimator::processImageLineTime(const map<int, vector<pair<int, Eigen::Matr
             if(result)
             {
                 solver_flag = NON_LINEAR;
-                // solveOdometry();// Triangulate depth and solve VIO with nonlinear optimization.
-                // solveOdometry_withline();  // Includes line features.
-                solveOdometry_plevio();  // Image features + event point and line features.
-                slideWindow();// Slide the window.
-                f_manager.removeFailures();// Remove invalid map points (unlike Fusion, this does not remove outliers; consider adding that and evaluating the result).
+                startHighRateWindow();
+                f_manager.removeFailures();
                 ROS_INFO("Initialization finish!");
-                last_R = Rs[WINDOW_SIZE];// Get the latest pose in the sliding window.
-                last_P = Ps[WINDOW_SIZE];
                 last_R0 = Rs[0];// The oldest pose in the sliding window.
                 last_P0 = Ps[0];
                 
@@ -522,6 +574,8 @@ void Estimator::processImageLineTime(const map<int, vector<pair<int, Eigen::Matr
     }
     else// Nonlinear optimization phase.
     {
+        if (advanceHighRateWindow())
+            return;
         TicToc t_solve;
         // solveOdometry();
         // solveOdometry_withline();  // Includes line features.
@@ -574,9 +628,12 @@ void Estimator::Setreo_processImage(const map<int, vector<pair<int, Eigen::Matri
     ROS_DEBUG("number of feature: %d", f_manager.getFeatureCount());
     Headers[frame_count] = header;
 
-    ImageFrame imageframe(image, header.stamp.toSec());
-    imageframe.pre_integration = tmp_pre_integration;//这段时间IMU预积分的信息
-    all_image_frame.insert(make_pair(header.stamp.toSec(), imageframe));
+    if (solver_flag == INITIAL)
+    {
+        ImageFrame imageframe(image, header.stamp.toSec());
+        imageframe.pre_integration = tmp_pre_integration;//这段时间IMU预积分的信息
+        all_image_frame.insert(make_pair(header.stamp.toSec(), imageframe));
+    }
     tmp_pre_integration = new IntegrationBase{acc_0, gyr_0, Bas[frame_count], Bgs[frame_count]};
 
     if(ESTIMATE_EXTRINSIC == 2)//自主估计IMU与camera的外参
@@ -599,7 +656,7 @@ void Estimator::Setreo_processImage(const map<int, vector<pair<int, Eigen::Matri
 
     if (solver_flag == INITIAL)//初始化过程
     {
-        if (frame_count == WINDOW_SIZE)
+        if (frame_count == INIT_WINDOW_SIZE)
         {
             bool result = false;
             if( ESTIMATE_EXTRINSIC != 2 && (header.stamp.toSec() - initial_timestamp) > 0.1)
@@ -614,13 +671,9 @@ void Estimator::Setreo_processImage(const map<int, vector<pair<int, Eigen::Matri
             if(result)
             {
                 solver_flag = NON_LINEAR;
-
-                solveOdometry_stereo_plevio();  //(图像特征+事件点线特征) 
-                slideWindow();//滑动窗口
-                f_manager.removeFailures();// 移除无效地图点  （没有fusion中的去除outliers，是否可以加上看看效果？）
+                startHighRateWindow();
+                f_manager.removeFailures();
                 ROS_INFO("Initialization finish!");
-                last_R = Rs[WINDOW_SIZE];//获取滑动窗口内最新的位置
-                last_P = Ps[WINDOW_SIZE];
                 last_R0 = Rs[0];// 滑窗里最老的位姿
                 last_P0 = Ps[0];
                 
@@ -633,6 +686,8 @@ void Estimator::Setreo_processImage(const map<int, vector<pair<int, Eigen::Matri
     }
     else//非线性优化过程
     {
+        if (advanceHighRateWindow())
+            return;
         TicToc t_solve;
         // solveOdometry();
         // solveOdometry_withline();  //(加入了线特征了) 
@@ -1161,7 +1216,7 @@ bool Estimator::visualInitialAlign()
     f_manager.triangulate(Ps, &(TIC_TMP[0]), &(RIC[0]));
 
     double s = (x.tail<1>())(0);//尺度
-    for (int i = 0; i <= WINDOW_SIZE; i++)
+    for (int i = 0; i <= frame_count; i++)
     {
         pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);
     }
@@ -1240,7 +1295,7 @@ bool Estimator::visualInitialAlignWithDepth()
     f_manager.stereo_triangulate(Ps, &(TIC_TMP[0]), &(RIC[0]));
 
     // do repropagate here
-    for (int i = 0; i <= WINDOW_SIZE; i++)
+    for (int i = 0; i <= frame_count; i++)
     {
         pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);
     }
@@ -1310,10 +1365,10 @@ bool Estimator::visualInitialAlignWithDepth()
 bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
 {
     // find previous frame which contians enough correspondance and parallex with newest frame
-    for (int i = 0; i < WINDOW_SIZE; i++)
+    for (int i = 0; i < frame_count; i++)
     {
         vector<pair<Vector3d, Vector3d>> corres;
-        corres = f_manager.getCorresponding(i, WINDOW_SIZE);
+        corres = f_manager.getCorresponding(i, frame_count);
         if (corres.size() > 20)
         {
             double sum_parallax = 0;
@@ -1341,11 +1396,11 @@ bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l)
 bool Estimator::relativePoseHybrid(Matrix3d &relative_R, Vector3d &relative_T, int &l)
 {
     // find previous frame which contians enough correspondance and parallex with newest frame
-    for (int i = 0; i < WINDOW_SIZE; i++)
+    for (int i = 0; i < frame_count; i++)
     {
         vector<pair<Vector3d, Vector3d>> corres;
         // corres = f_manager.getCorresponding(i, WINDOW_SIZE);
-        corres = f_manager.getCorrespondingWithDepth(i, WINDOW_SIZE);
+        corres = f_manager.getCorrespondingWithDepth(i, frame_count);
         if (corres.size() > 20)
         {
             double sum_parallax = 0;
@@ -3995,14 +4050,15 @@ void  Estimator::onlyLineOpt()
 void Estimator::slideWindow()
 {
     TicToc t_margin;
+    const int active_window_size = solver_flag == INITIAL ? INIT_WINDOW_SIZE : WINDOW_SIZE;
     if (marginalization_flag == MARGIN_OLD)
     {
         double t_0 = Headers[0].stamp.toSec();
         back_R0 = Rs[0];
         back_P0 = Ps[0];
-        if (frame_count == WINDOW_SIZE)
+        if (frame_count == active_window_size)
         {
-            for (int i = 0; i < WINDOW_SIZE; i++)
+            for (int i = 0; i < active_window_size; i++)
             {
                 Rs[i].swap(Rs[i + 1]);
 
@@ -4018,21 +4074,21 @@ void Estimator::slideWindow()
                 Bas[i].swap(Bas[i + 1]);
                 Bgs[i].swap(Bgs[i + 1]);
             }
-            Headers[WINDOW_SIZE] = Headers[WINDOW_SIZE - 1];
-            Ps[WINDOW_SIZE] = Ps[WINDOW_SIZE - 1];
-            Vs[WINDOW_SIZE] = Vs[WINDOW_SIZE - 1];
-            Rs[WINDOW_SIZE] = Rs[WINDOW_SIZE - 1];
-            Bas[WINDOW_SIZE] = Bas[WINDOW_SIZE - 1];
-            Bgs[WINDOW_SIZE] = Bgs[WINDOW_SIZE - 1];
+            Headers[active_window_size] = Headers[active_window_size - 1];
+            Ps[active_window_size] = Ps[active_window_size - 1];
+            Vs[active_window_size] = Vs[active_window_size - 1];
+            Rs[active_window_size] = Rs[active_window_size - 1];
+            Bas[active_window_size] = Bas[active_window_size - 1];
+            Bgs[active_window_size] = Bgs[active_window_size - 1];
 
-            delete pre_integrations[WINDOW_SIZE];
-            pre_integrations[WINDOW_SIZE] = new IntegrationBase{acc_0, gyr_0, Bas[WINDOW_SIZE], Bgs[WINDOW_SIZE]};
+            delete pre_integrations[active_window_size];
+            pre_integrations[active_window_size] = new IntegrationBase{acc_0, gyr_0, Bas[active_window_size], Bgs[active_window_size]};
 
-            dt_buf[WINDOW_SIZE].clear();
-            linear_acceleration_buf[WINDOW_SIZE].clear();
-            angular_velocity_buf[WINDOW_SIZE].clear();
+            dt_buf[active_window_size].clear();
+            linear_acceleration_buf[active_window_size].clear();
+            angular_velocity_buf[active_window_size].clear();
 
-            if (true || solver_flag == INITIAL)
+            if (solver_flag == INITIAL)
             {
                 map<double, ImageFrame>::iterator it_0;
                 it_0 = all_image_frame.find(t_0);
@@ -4055,7 +4111,7 @@ void Estimator::slideWindow()
     }
     else
     {
-        if (frame_count == WINDOW_SIZE)
+        if (frame_count == active_window_size)
         {
             for (unsigned int i = 0; i < dt_buf[frame_count].size(); i++)
             {
@@ -4077,12 +4133,12 @@ void Estimator::slideWindow()
             Bas[frame_count - 1] = Bas[frame_count];
             Bgs[frame_count - 1] = Bgs[frame_count];
 
-            delete pre_integrations[WINDOW_SIZE];
-            pre_integrations[WINDOW_SIZE] = new IntegrationBase{acc_0, gyr_0, Bas[WINDOW_SIZE], Bgs[WINDOW_SIZE]};
+            delete pre_integrations[active_window_size];
+            pre_integrations[active_window_size] = new IntegrationBase{acc_0, gyr_0, Bas[active_window_size], Bgs[active_window_size]};
 
-            dt_buf[WINDOW_SIZE].clear();
-            linear_acceleration_buf[WINDOW_SIZE].clear();
-            angular_velocity_buf[WINDOW_SIZE].clear();
+            dt_buf[active_window_size].clear();
+            linear_acceleration_buf[active_window_size].clear();
+            angular_velocity_buf[active_window_size].clear();
 
             slideWindowNew();
         }

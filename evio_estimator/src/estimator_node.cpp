@@ -1314,7 +1314,8 @@ void process_point_line_highfreq_image()
             // ROS_ERROR("****************************");
             
                         
-            estimator.processImageLineTime(image,event,lines, line_msg->header); // Process point features as well.
+            estimator.processImageLineTime(image, event, lines, line_msg->header,
+                                           img_msg != NULL); // Process all line ticks; initialize only on actual image frames.
 
 
              // Print statistics and publish topics.

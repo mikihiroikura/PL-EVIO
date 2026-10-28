@@ -56,7 +56,8 @@ class Estimator
     void processImageLineTime(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, // Frame point features
                              const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, // Event point features.
                              const map<int, vector<pair<int, Vector4d>>> &lines,// Event line features.
-                             const std_msgs::Header &line_header);
+                             const std_msgs::Header &line_header,
+                             bool has_frame_image);
     void Setreo_processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, //图像状特征
                             const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, //事件点状特征
                             const map<int, vector<pair<int, Vector4d>>> &lines,//事件线状特征 
@@ -65,6 +66,8 @@ class Estimator
 
     // internal
     void clearState();
+    void startHighRateWindow();
+    bool advanceHighRateWindow();
 
     bool initialStructure();
     bool initialStructureStereo();//双目初始化
