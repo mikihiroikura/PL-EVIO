@@ -1837,6 +1837,202 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
 
 }
 
+
+// 增加了线特征的处理过程
+void FeatureManager::removeBackShiftDepthDiffAnchor(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P)
+{
+    //对图像点特征进行处理
+    for (auto it = feature.begin(), it_next = feature.begin();
+         it != feature.end(); it = it_next)
+    {
+        it_next++;
+
+        if (it->start_frame != 0) {
+            it->start_frame--;
+            for (auto &it_per_frame : it->feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
+        else
+        {
+            Eigen::Vector3d uv_i = it->feature_per_frame[0].point;
+            it->feature_per_frame.erase(it->feature_per_frame.begin());
+            if (it->feature_per_frame.size() < 2)
+            {
+                feature.erase(it);
+                continue;
+            }
+            else
+            {
+                for (auto &it_per_frame : it->feature_per_frame)
+                {
+                    it_per_frame.frame_idx--;
+                }
+                if (it->start_frame != it->feature_per_frame.front().frame_idx)
+                {
+                    it->start_frame = it->feature_per_frame.front().frame_idx;
+                }
+                Eigen::Matrix3d new_R = Rs[it->start_frame] * ric[0];
+                Eigen::Vector3d new_P = Ps[it->start_frame] + Rs[it->start_frame] * tic[0];
+                Eigen::Vector3d pts_i = uv_i * it->estimated_depth;
+                Eigen::Vector3d w_pts_i = marg_R * pts_i + marg_P;
+                Eigen::Vector3d pts_j = new_R.transpose() * (w_pts_i - new_P);
+                double dep_j = pts_j(2);
+                if (dep_j > 0)
+                    it->estimated_depth = dep_j;
+                else
+                    it->estimated_depth = INIT_DEPTH;
+            }
+        }
+    }
+
+    //双目的情况下处理
+    for (auto it = stereo_feature.begin(), it_next = stereo_feature.begin();
+        it != stereo_feature.end(); it = it_next)
+    {
+        it_next++;
+
+        if (it->start_frame != 0) {
+            it->start_frame--;
+            for (auto &it_per_frame : it->feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
+        else
+        {
+            Eigen::Vector3d uv_i = it->feature_per_frame[0].point;
+            it->feature_per_frame.erase(it->feature_per_frame.begin());
+            if (it->feature_per_frame.size() < 2)
+            {
+                stereo_feature.erase(it);
+                continue;
+            }
+            else
+            {
+                for (auto &it_per_frame : it->feature_per_frame)
+                {
+                    it_per_frame.frame_idx--;
+                }
+                if (it->start_frame != it->feature_per_frame.front().frame_idx)
+                {
+                    it->start_frame = it->feature_per_frame.front().frame_idx;
+                }
+                Eigen::Matrix3d new_R = Rs[it->start_frame] * ric[0];
+                Eigen::Vector3d new_P = Ps[it->start_frame] + Rs[it->start_frame] * tic[0];
+                Eigen::Vector3d pts_i = uv_i * it->estimated_depth;
+                Eigen::Vector3d w_pts_i = marg_R * pts_i + marg_P;
+                Eigen::Vector3d pts_j = new_R.transpose() * (w_pts_i - new_P);
+                double dep_j = pts_j(2);
+                if (dep_j > 0)
+                    it->estimated_depth = dep_j;
+                else
+                    it->estimated_depth = INIT_DEPTH;
+            }
+        }
+        // remove tracking-lost feature after marginalize
+        /*
+        if (it->endFrame() < WINDOW_SIZE - 1)
+        {
+            feature.erase(it);
+        }
+        */
+    }
+
+    //对事件点特征进行处理
+    for (auto it = Event_feature.begin(), it_next = Event_feature.begin();
+         it != Event_feature.end(); it = it_next)
+    {
+        it_next++;
+
+        if (it->start_frame != 0) {
+            it->start_frame--;
+            for (auto &it_per_frame : it->Event_feature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
+        else
+        {
+            Eigen::Vector3d uv_i = it->Event_feature_per_frame[0].point;
+            it->Event_feature_per_frame.erase(it->Event_feature_per_frame.begin());
+            if (it->Event_feature_per_frame.size() < 2)
+            {
+                Event_feature.erase(it);
+                continue;
+            }
+            else
+            {
+                for (auto &it_per_frame : it->Event_feature_per_frame)
+                {
+                    it_per_frame.frame_idx--;
+                }
+                if (it->start_frame != it->Event_feature_per_frame.front().frame_idx)
+                {
+                    it->start_frame = it->Event_feature_per_frame.front().frame_idx;
+                }
+                Eigen::Matrix3d new_R = Rs[it->start_frame] * ric[0];
+                Eigen::Vector3d new_P = Ps[it->start_frame] + Rs[it->start_frame] * tic[0];
+                Eigen::Vector3d pts_i = uv_i * it->estimated_depth;
+                Eigen::Vector3d w_pts_i = marg_R * pts_i + marg_P;
+                Eigen::Vector3d pts_j = new_R.transpose() * (w_pts_i - new_P);
+                double dep_j = pts_j(2);
+                if (dep_j > 0)
+                    it->estimated_depth = dep_j;
+                else
+                    it->estimated_depth = INIT_DEPTH;
+            }
+        }
+    }
+
+    // 对事件线特征进行处理（线特征的深度暂时没有通过雷达获取）
+    for (auto it = linefeature.begin(), it_next = linefeature.begin();
+         it != linefeature.end(); it = it_next)
+    {
+        it_next++;
+
+        if (it->start_frame != 0)    // 如果特征不是在这帧上初始化的，那就不用管，只要管id--
+        {
+            it->start_frame--;
+            for (auto &it_per_frame : it->linefeature_per_frame)
+            {
+                it_per_frame.frame_idx--;
+            }
+        }
+        else
+        {
+            it->linefeature_per_frame.erase(it->linefeature_per_frame.begin());  // 移除观测
+            if (it->linefeature_per_frame.size() < 2)                     // 如果观测到这个帧的图像少于两帧，那这个特征不要了
+            {
+                linefeature.erase(it);
+                continue;
+            }
+            else  // 如果还有很多帧看到它，而我们又把这个特征的初始化帧给marg掉了，那就得把这个特征转挂到下一帧上去, 这里 marg_R, new_R 都是相应时刻的相机坐标系到世界坐标系的变换
+            {
+                it->removed_cnt++;
+                for (auto &it_per_frame : it->linefeature_per_frame)
+                {
+                    it_per_frame.frame_idx--;
+                }
+                if (it->start_frame != it->linefeature_per_frame.front().frame_idx)
+                {
+                    it->start_frame = it->linefeature_per_frame.front().frame_idx;
+                }
+                // transpose this line to the new pose
+                Eigen::Matrix3d new_R = Rs[it->start_frame] * ric[0];
+                Eigen::Vector3d new_P = Ps[it->start_frame] + Rs[it->start_frame] * tic[0];
+                Eigen::Matrix3d Rji = new_R.transpose() * marg_R;     // Rcjw * Rwci
+                Eigen::Vector3d tji = new_R.transpose() * (marg_P - new_P);
+                Eigen::Vector6d plk_j = plk_to_pose(it->line_plucker, Rji, tji);
+                it->line_plucker = plk_j;
+            }
+        }
+    }
+
+}
+
+
 void FeatureManager::removeBack()
 {
     // 对图像点特征进行处理

@@ -345,6 +345,7 @@ class FeatureManager
     void triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);//实现直线三角化函数
     void triangulateLine(double baseline);  // stereo line
     void removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P, Eigen::Matrix3d new_R, Eigen::Vector3d new_P);
+    void removeBackShiftDepthDiffAnchor(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P);
     void removeBack();
     void removeFront(int frame_count);
     void removeFront(int frame_count, int delete_idx);
