@@ -1658,6 +1658,10 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
                 {
                     it_per_frame.frame_idx--;
                 }
+                if (it->start_frame != it->feature_per_frame.front().frame_idx)
+                {
+                    it->start_frame = it->feature_per_frame.front().frame_idx;
+                }
             }
         }
         // remove tracking-lost feature after marginalize
@@ -1704,6 +1708,10 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
                 for (auto &it_per_frame : it->Event_feature_per_frame)
                 {
                     it_per_frame.frame_idx--;
+                }
+                if (it->start_frame != it->Event_feature_per_frame.front().frame_idx)
+                {
+                    it->start_frame = it->Event_feature_per_frame.front().frame_idx;
                 }
             }
         }
@@ -1781,6 +1789,10 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
                 {
                     it_per_frame.frame_idx--;
                 }
+                if (it->start_frame != it->linefeature_per_frame.front().frame_idx)
+                {
+                    it->start_frame = it->linefeature_per_frame.front().frame_idx;
+                }
             }
 //-----------------------
 /*
@@ -1846,6 +1858,10 @@ void FeatureManager::removeBack()
                 {
                     it_per_frame.frame_idx--;
                 }
+                if (it->feature_per_frame.front().frame_idx != it->start_frame)
+                {
+                    it->start_frame = it->feature_per_frame.front().frame_idx;
+                }
             }
         }
     }
@@ -1873,6 +1889,10 @@ void FeatureManager::removeBack()
                 {
                     it_per_frame.frame_idx--;
                 }
+                if (it->feature_per_frame.front().frame_idx != it->start_frame)
+                {
+                    it->start_frame = it->feature_per_frame.front().frame_idx;
+                }
             }
         }
     }
@@ -1899,6 +1919,10 @@ void FeatureManager::removeBack()
                 for (auto &it_per_frame : it->Event_feature_per_frame)
                 {
                     it_per_frame.frame_idx--;
+                }
+                if (it->Event_feature_per_frame.front().frame_idx != it->start_frame)
+                {
+                    it->start_frame = it->Event_feature_per_frame.front().frame_idx;
                 }
             }
         }
@@ -1929,6 +1953,10 @@ void FeatureManager::removeBack()
                 for (auto &it_per_frame : it->linefeature_per_frame)
                 {
                     it_per_frame.frame_idx--;
+                }
+                if (it->linefeature_per_frame.front().frame_idx != it->start_frame)
+                {
+                    it->start_frame = it->linefeature_per_frame.front().frame_idx;
                 }
             }
         }
