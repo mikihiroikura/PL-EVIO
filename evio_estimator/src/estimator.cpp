@@ -3399,6 +3399,12 @@ void Estimator::optimization_plevio()
                 delete_idx = std::max(delete_idx, obs.frame_idx);
             }
         }
+        if (delete_idx < 0 || delete_idx >= frame_count)
+        {
+            ROS_WARN("Invalid marginalization index: %d", delete_idx);
+            return;
+            // Use a consistent fallback policy.
+        }
 
         if (last_marginalization_info &&
             std::count(std::begin(last_marginalization_parameter_blocks), std::end(last_marginalization_parameter_blocks), para_Pose[delete_idx]))
