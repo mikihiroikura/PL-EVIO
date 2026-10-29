@@ -3406,40 +3406,18 @@ void Estimator::optimization_plevio()
             // Use a consistent fallback policy.
         }
 
-        if (last_marginalization_info &&
-            std::count(std::begin(last_marginalization_parameter_blocks), std::end(last_marginalization_parameter_blocks), para_Pose[delete_idx]))
+        if (last_marginalization_info)
         {
-
-            MarginalizationInfo *marginalization_info = new MarginalizationInfo();
-            vector2double();
-            if (last_marginalization_info)
+            // 1. Identify blocks to marginalize.
+            vector<int> drop_set;
+            for (int i = 0; i < static_cast<int>(last_marginalization_parameter_blocks.size()); i++)
             {
-                vector<int> drop_set;
-                for (int i = 0; i < static_cast<int>(last_marginalization_parameter_blocks.size()); i++)
-                {
-                    ROS_ASSERT(last_marginalization_parameter_blocks[i] != para_SpeedBias[delete_idx]);
-                    if (last_marginalization_parameter_blocks[i] == para_Pose[delete_idx])
-                        drop_set.push_back(i);
-                }
-                // construct new marginlization_factor
-                MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
-                ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(marginalization_factor, NULL,
-                                                                               last_marginalization_parameter_blocks,
-                                                                               drop_set);
-
-                marginalization_info->addResidualBlockInfo(residual_block_info);
+                if (last_marginalization_parameter_blocks[i] == para_Pose[delete_idx] ||
+                    last_marginalization_parameter_blocks[i] == para_SpeedBias[delete_idx])
+                    drop_set.push_back(i);
             }
 
-            TicToc t_pre_margin;
-            ROS_DEBUG("begin marginalization");
-            marginalization_info->preMarginalize();
-            ROS_DEBUG("end pre marginalization, %f ms", t_pre_margin.toc());
-
-            TicToc t_margin;
-            ROS_DEBUG("begin marginalization");
-            marginalization_info->marginalize();
-            ROS_DEBUG("end marginalization, %f ms", t_margin.toc());
-            
+            // 2. Construct address shift mapping.
             std::unordered_map<long, double *> addr_shift;
             for (int i = 0; i <= WINDOW_SIZE; i++)
             {
@@ -3462,13 +3440,56 @@ void Estimator::optimization_plevio()
             {
                 addr_shift[reinterpret_cast<long>(para_Td[0])] = para_Td[0];
             }
-            
-            vector<double *> parameter_blocks = marginalization_info->getParameterBlocks(addr_shift);
-            if (last_marginalization_info)
-                delete last_marginalization_info;
-            last_marginalization_info = marginalization_info;
-            last_marginalization_parameter_blocks = parameter_blocks;
-            
+
+            // construct new marginlization_factor
+            if (!drop_set.empty())
+            {
+                MarginalizationInfo *marginalization_info = new MarginalizationInfo();
+                vector2double();
+                MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
+                ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(marginalization_factor, NULL,
+                                                                                last_marginalization_parameter_blocks,
+                                                                                drop_set);
+
+                marginalization_info->addResidualBlockInfo(residual_block_info);
+
+                TicToc t_pre_margin;
+                ROS_DEBUG("begin marginalization");
+                marginalization_info->preMarginalize();
+                ROS_DEBUG("end pre marginalization, %f ms", t_pre_margin.toc());
+
+                TicToc t_margin;
+                ROS_DEBUG("begin marginalization");
+                marginalization_info->marginalize();
+                ROS_DEBUG("end marginalization, %f ms", t_margin.toc());
+
+
+                vector<double *> parameter_blocks = marginalization_info->getParameterBlocks(addr_shift);
+                if (last_marginalization_info)
+                    delete last_marginalization_info;
+                last_marginalization_info = marginalization_info;
+                last_marginalization_parameter_blocks = parameter_blocks;
+            }
+            else
+            {
+                // 4. No state elimination is necessary.
+                // Remap surviving prior parameter blocks.
+                for (double *&block : last_marginalization_parameter_blocks)
+                {
+                    auto it = addr_shift.find(reinterpret_cast<long>(block));
+
+                    if (it == addr_shift.end())
+                    {
+                        ROS_ERROR("Missing address mapping for prior block");
+                        // Do not silently continue with stale pointers.
+                        throw std::runtime_error(
+                            "Invalid marginalization parameter mapping"
+                        );
+                    }
+
+                    block = it->second;
+                }
+            }
         }
     }
     ROS_DEBUG("whole marginalization costs: %f", t_whole_marginalization.toc());
