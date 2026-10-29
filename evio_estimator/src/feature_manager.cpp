@@ -1839,8 +1839,11 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
 
 
 // 增加了线特征的处理过程
-void FeatureManager::removeBackShiftDepthDiffAnchor(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P)
+void FeatureManager::removeBackShiftDepthDiffAnchor(Eigen::Matrix3d _back_R0, Eigen::Vector3d _back_P0, const Eigen::Matrix3d Rs[], const Eigen::Vector3d Ps[], const Eigen::Vector3d tic[], const Eigen::Matrix3d ric[])
 {
+    Matrix3d marg_R = _back_R0 * ric[0];
+    Vector3d marg_P = _back_P0 + _back_R0 * tic[0];
+
     //对图像点特征进行处理
     for (auto it = feature.begin(), it_next = feature.begin();
          it != feature.end(); it = it_next)

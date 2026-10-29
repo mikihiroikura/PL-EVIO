@@ -345,7 +345,7 @@ class FeatureManager
     void triangulateLine(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);//实现直线三角化函数
     void triangulateLine(double baseline);  // stereo line
     void removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P, Eigen::Matrix3d new_R, Eigen::Vector3d new_P);
-    void removeBackShiftDepthDiffAnchor(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P);
+    void removeBackShiftDepthDiffAnchor(Eigen::Matrix3d _back_R0, Eigen::Vector3d _back_P0, const Eigen::Matrix3d Rs[], const Eigen::Vector3d Ps[], const Eigen::Vector3d tic[], const Eigen::Matrix3d ric[]);
     void removeBack();
     void removeFront(int frame_count);
     void removeFront(int frame_count, int delete_idx);
@@ -364,6 +364,7 @@ class FeatureManager
     double compensatedParallax2(const FeaturePerId &it_per_id, int frame_count);//处理图像特征点
     double compensatedParallax2(const stereo_FeaturePerId &it_per_id, int frame_count);//处理双目的图像点特征
     double compensatedParallax2(const Event_FeaturePerId &it_per_id, int frame_count);//处理事件特征点
+    double compensatedParallax3(const FeaturePerId &it_per_id, int frame_idx_i, int frame_idx_j);
     const Matrix3d *Rs;
     Matrix3d ric[NUM_OF_CAM];
 };

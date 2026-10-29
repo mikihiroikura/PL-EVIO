@@ -4132,7 +4132,7 @@ void Estimator::slideWindow()
         if (frame_count == active_window_size)
         {
             int delete_idx = -1;
-            for (const auto &it_per_id : feature)
+            for (const auto &it_per_id : f_manager.feature)
             {
                 for (const auto &observation : it_per_id.feature_per_frame)
                 {
@@ -4224,7 +4224,7 @@ void Estimator::slideWindowOld()
         R1 = Rs[0] * ric[0];
         P0 = back_P0 + back_R0 * tic[0];
         P1 = Ps[0] + Rs[0] * tic[0];
-        f_manager.removeBackShiftDepthDiffAnchor(R0, P0);
+        f_manager.removeBackShiftDepthDiffAnchor(back_R0, back_P0, Rs, Ps, tic, ric);
     }
     else
         f_manager.removeBack();
