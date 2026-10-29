@@ -2025,9 +2025,9 @@ void FeatureManager::removeBackShiftDepthDiffAnchor(Eigen::Matrix3d _back_R0, Ei
                 // transpose this line to the new pose
                 Eigen::Matrix3d new_R = Rs[it->start_frame] * ric[0];
                 Eigen::Vector3d new_P = Ps[it->start_frame] + Rs[it->start_frame] * tic[0];
-                Eigen::Matrix3d Rji = new_R.transpose() * marg_R;     // Rcjw * Rwci
-                Eigen::Vector3d tji = new_R.transpose() * (marg_P - new_P);
-                Eigen::Vector6d plk_j = plk_to_pose(it->line_plucker, Rji, tji);
+                Matrix3d Rji = new_R.transpose() * marg_R;     // Rcjw * Rwci
+                Vector3d tji = new_R.transpose() * (marg_P - new_P);
+                Vector6d plk_j = plk_to_pose(it->line_plucker, Rji, tji);
                 it->line_plucker = plk_j;
             }
         }
@@ -2505,10 +2505,10 @@ double FeatureManager::compensatedParallax3(const FeaturePerId &it_per_id, int f
     //check the second last frame is keyframe or not
     //parallax betwwen seconde last frame and third last frame
     const auto frame_i_it = find_if(it_per_id.feature_per_frame.begin(), it_per_id.feature_per_frame.end(),
-                                    [frame_count](const FeaturePerFrame &frame)
+                                    [frame_idx_i](const FeaturePerFrame &frame)
                                     { return frame.frame_idx == frame_idx_i; });
     const auto frame_j_it = find_if(it_per_id.feature_per_frame.begin(), it_per_id.feature_per_frame.end(),
-                                    [frame_count](const FeaturePerFrame &frame)
+                                    [frame_idx_j](const FeaturePerFrame &frame)
                                     { return frame.frame_idx == frame_idx_j; });
     if (frame_i_it == it_per_id.feature_per_frame.end() ||
         frame_j_it == it_per_id.feature_per_frame.end())
