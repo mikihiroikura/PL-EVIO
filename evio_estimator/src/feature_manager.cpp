@@ -1611,6 +1611,10 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
                 {
                     it_per_frame.frame_idx--;
                 }
+                if (it->start_frame != it->feature_per_frame.front().frame_idx)
+                {
+                    it->start_frame = it->feature_per_frame.front().frame_idx;
+                }
             }
         }
         // remove tracking-lost feature after marginalize
