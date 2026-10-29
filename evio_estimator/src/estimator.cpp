@@ -3389,8 +3389,19 @@ void Estimator::optimization_plevio()
     }
     else
     {
+        int delete_idx = -1;
+        for (const auto &feature : f_manager.feature)
+        {
+            for (const auto &obs : feature.feature_per_frame)
+            {
+                if (obs.frame_idx >= frame_count)
+                    continue;
+                delete_idx = std::max(delete_idx, obs.frame_idx);
+            }
+        }
+
         if (last_marginalization_info &&
-            std::count(std::begin(last_marginalization_parameter_blocks), std::end(last_marginalization_parameter_blocks), para_Pose[WINDOW_SIZE - 1]))
+            std::count(std::begin(last_marginalization_parameter_blocks), std::end(last_marginalization_parameter_blocks), para_Pose[delete_idx]))
         {
 
             MarginalizationInfo *marginalization_info = new MarginalizationInfo();
@@ -3400,8 +3411,8 @@ void Estimator::optimization_plevio()
                 vector<int> drop_set;
                 for (int i = 0; i < static_cast<int>(last_marginalization_parameter_blocks.size()); i++)
                 {
-                    ROS_ASSERT(last_marginalization_parameter_blocks[i] != para_SpeedBias[WINDOW_SIZE - 1]);
-                    if (last_marginalization_parameter_blocks[i] == para_Pose[WINDOW_SIZE - 1])
+                    ROS_ASSERT(last_marginalization_parameter_blocks[i] != para_SpeedBias[delete_idx]);
+                    if (last_marginalization_parameter_blocks[i] == para_Pose[delete_idx])
                         drop_set.push_back(i);
                 }
                 // construct new marginlization_factor
@@ -3426,9 +3437,9 @@ void Estimator::optimization_plevio()
             std::unordered_map<long, double *> addr_shift;
             for (int i = 0; i <= WINDOW_SIZE; i++)
             {
-                if (i == WINDOW_SIZE - 1)
+                if (i == delete_idx)
                     continue;
-                else if (i == WINDOW_SIZE)
+                else if (i > delete_idx)
                 {
                     addr_shift[reinterpret_cast<long>(para_Pose[i])] = para_Pose[i - 1];
                     addr_shift[reinterpret_cast<long>(para_SpeedBias[i])] = para_SpeedBias[i - 1];
