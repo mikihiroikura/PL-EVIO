@@ -2104,6 +2104,10 @@ void FeatureManager::removeFront(int frame_count, int delete_idx)
                 if (frame.frame_idx > delete_idx)
                     frame.frame_idx--;
             }
+            if (it->feature_per_frame.front().frame_idx != it->start_frame)
+            {
+                it->start_frame = it->feature_per_frame.front().frame_idx;
+            }
         }
     }
 
@@ -2136,6 +2140,10 @@ void FeatureManager::removeFront(int frame_count, int delete_idx)
             for (auto &frame : it->feature_per_frame) {
                 if (frame.frame_idx > delete_idx)
                     frame.frame_idx--;
+            }
+            if (it->feature_per_frame.front().frame_idx != it->start_frame)
+            {
+                it->start_frame = it->feature_per_frame.front().frame_idx;
             }
         }
     }
@@ -2170,6 +2178,10 @@ void FeatureManager::removeFront(int frame_count, int delete_idx)
                 if (frame.frame_idx > delete_idx)
                     frame.frame_idx--;
             }
+            if (it->Event_feature_per_frame.size() > 0 && it->Event_feature_per_frame.front().frame_idx != it->start_frame)
+            {
+                it->start_frame = it->Event_feature_per_frame.front().frame_idx;
+            }
         }
     }
 
@@ -2202,6 +2214,10 @@ void FeatureManager::removeFront(int frame_count, int delete_idx)
             for (auto &frame : it->linefeature_per_frame) {
                 if (frame.frame_idx > delete_idx)
                     frame.frame_idx--;
+            }
+            if (it->linefeature_per_frame.front().frame_idx != it->start_frame)
+            {
+                it->start_frame = it->linefeature_per_frame.front().frame_idx;
             }
         }
     }
