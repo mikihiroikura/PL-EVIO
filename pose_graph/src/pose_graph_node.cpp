@@ -407,23 +407,26 @@ void process()// 回环检测主要处理函数，也是需要重点关注改进
         m_buf.unlock();
         // 至此取出了时间戳同步的原图，KF和地图点信息
         //----DEBUG----
-        ROS_INFO_THROTTLE(
-            1.0,
-            "[LOOP_SYNC] "
-            "image=%.6f pose=%.6f point=%.6f "
-            "dt_pose=%.3fms dt_point=%.3fms",
-            image_msg->header.stamp.toSec(),
-            pose_msg->header.stamp.toSec(),
-            point_msg->header.stamp.toSec(),
-            1000.0 * (
-                pose_msg->header.stamp.toSec() -
-                image_msg->header.stamp.toSec()
-            ),
-            1000.0 * (
-                point_msg->header.stamp.toSec() -
-                image_msg->header.stamp.toSec()
-            )
-        );
+        if (image_msg && pose_msg && point_msg)
+        {
+            ROS_INFO_THROTTLE(
+                1.0,
+                "[LOOP_SYNC] "
+                "image=%.6f pose=%.6f point=%.6f "
+                "dt_pose=%.3fms dt_point=%.3fms",
+                image_msg->header.stamp.toSec(),
+                pose_msg->header.stamp.toSec(),
+                point_msg->header.stamp.toSec(),
+                1000.0 * (
+                    pose_msg->header.stamp.toSec() -
+                    image_msg->header.stamp.toSec()
+                ),
+                1000.0 * (
+                    point_msg->header.stamp.toSec() -
+                    image_msg->header.stamp.toSec()
+                )
+            );
+        }
 
         // 构建pose_graph中用到的关键帧，然后每隔SKIP_CNT，将将距上一关键帧距离（平移向量的模）超过SKIP_DIS的图像创建为关键帧。
         // 其中，最核心的函数是KeyFrame类以及addKeyFrame（）函数。
