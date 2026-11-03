@@ -1311,7 +1311,7 @@ void process_point_line_highfreq_image()
                 lines.begin()->second.front().second(0), // Just an example to show the first line's x_startpoint
                 lines.begin()->second.front().second(1), // Just an example to show the first line's y_startpoint
                 lines.begin()->second.front().second(2), // Just an example to show the first line's x_endpoint
-                lines.begin()->second.front().second(3), // Just an example
+                lines.begin()->second.front().second(3) // Just an example
             );
             // ROS_ERROR("The number of the point:%d",img_msg->points.size());
             // ROS_ERROR("The number of the line:%d",line_msg->points.size());
