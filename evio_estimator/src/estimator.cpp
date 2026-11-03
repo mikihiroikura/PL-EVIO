@@ -565,7 +565,15 @@ void Estimator::processImageLineTime(const map<int, vector<pair<int, Eigen::Matr
                 ROS_INFO("Initialization finish!");
                 last_R0 = Rs[0];// The oldest pose in the sliding window.
                 last_P0 = Ps[0];
-                
+                // ----DEBUG----
+                ROS_INFO(
+                    "[INIT_SUCCESS] t=%.6f "
+                    "frame_count=%d init_window=%d opt_window=%d",
+                    line_header.stamp.toSec(),
+                    frame_count,
+                    INIT_WINDOW_SIZE,
+                    WINDOW_SIZE
+                );
             }
             else
                 slideWindow();
@@ -575,6 +583,29 @@ void Estimator::processImageLineTime(const map<int, vector<pair<int, Eigen::Matr
     }
     else// Nonlinear optimization phase.
     {
+        // ----DEBUG----
+        static double last_backend_t = -1.0;
+
+        const double current_t = line_header.stamp.toSec();
+
+        if (last_backend_t >= 0.0)
+        {
+            const double dt_ms =
+                (current_t - last_backend_t) * 1000.0;
+
+            ROS_INFO_THROTTLE(
+                1.0,
+                "[BACKEND_FREQ] dt=%.3fms freq=%.2fHz "
+                "frame_count=%d",
+                dt_ms,
+                dt_ms > 0.0 ? 1000.0 / dt_ms : 0.0,
+                frame_count
+            );
+        }
+
+        last_backend_t = current_t;
+        // ----DEBUG END----
+
         if (advanceHighRateWindow())
             return;
         TicToc t_solve;
@@ -4169,6 +4200,13 @@ void Estimator::slideWindow()
             }
             if (delete_idx < 0) 
                 return;
+            // ----DEBUG----
+            const double dt_before =
+                pre_integrations[delete_idx]->sum_dt;
+
+            const double dt_next =
+                pre_integrations[delete_idx + 1]->sum_dt;
+            // ----DEBUG END----
             for (unsigned int i = 0; i < dt_buf[delete_idx + 1].size(); i++)
             {
                 double tmp_dt = dt_buf[delete_idx + 1][i];
@@ -4181,6 +4219,26 @@ void Estimator::slideWindow()
                 linear_acceleration_buf[delete_idx].push_back(tmp_linear_acceleration);
                 angular_velocity_buf[delete_idx].push_back(tmp_angular_velocity);
             }
+
+            // ----DEBUG----
+            const double dt_after =
+                pre_integrations[delete_idx]->sum_dt;
+
+            const double dt_error =
+                dt_after - (dt_before + dt_next);
+
+            ROS_INFO_THROTTLE(
+                1.0,
+                "[IMU_MERGE] delete_idx=%d "
+                "dt_before=%.6f dt_next=%.6f "
+                "dt_after=%.6f error=%.9f",
+                delete_idx,
+                dt_before,
+                dt_next,
+                dt_after,
+                dt_error
+            );
+            // ----DEBUG END----
             for (int i = delete_idx; i < active_window_size; i++)
             {
                 Rs[i].swap(Rs[i + 1]);

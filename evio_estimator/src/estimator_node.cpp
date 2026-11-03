@@ -1313,7 +1313,25 @@ void process_point_line_highfreq_image()
 
             // ROS_ERROR("****************************");
             
-                        
+            // ----DEBUG----
+            const double t_line = line_msg->header.stamp.toSec();
+            const double t_img = img_msg ? img_msg->header.stamp.toSec() : -1.0;
+            const double t_event = event_msg ? event_msg->header.stamp.toSec() : -1.0;
+
+            ROS_INFO_THROTTLE(
+                1.0,
+                "[SYNC] line=%.6f img=%.6f event=%.6f "
+                "dt_img=%.2fms dt_event=%.2fms "
+                "has_img=%d has_event=%d",
+                t_line,
+                t_img,
+                t_event,
+                img_msg ? (t_line - t_img) * 1000.0 : 0.0,
+                event_msg ? (t_line - t_event) * 1000.0 : 0.0,
+                img_msg != nullptr,
+                event_msg != nullptr
+            );
+            // ----DEBUG END----
             estimator.processImageLineTime(image, event, lines, line_msg->header,
                                            img_msg != NULL); // Process all line ticks; initialize only on actual image frames.
 
