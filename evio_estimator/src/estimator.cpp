@@ -514,6 +514,19 @@ void Estimator::processImageLineTime(const map<int, vector<pair<int, Eigen::Matr
     else
         marginalization_flag = MARGIN_SECOND_NEW;
 
+    // ----DEBUG----
+    ROS_INFO_THROTTLE(
+        1.0,
+        "[FEATURE_INPUT] "
+        "has_frame=%d "
+        "image=%zu event=%zu line=%zu "
+        "last_track_num=%d",
+        has_frame_image,
+        image.size(),
+        event.size(),
+        lines.size(),
+        f_manager.last_track_num
+    );
     ROS_DEBUG("this frame is--------------------%s", marginalization_flag ? "reject" : "accept");
     ROS_DEBUG("%s", marginalization_flag ? "Non-keyframe" : "Keyframe");
     ROS_DEBUG("Solving %d", frame_count);
