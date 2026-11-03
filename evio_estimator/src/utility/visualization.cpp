@@ -498,11 +498,19 @@ void pubKeyframeSynchronized(const Estimator &estimator, const std_msgs::Header 
 
         sensor_msgs::PointCloud point_cloud;
         point_cloud.header = estimator.Headers[keyframe_idx];
+        int n_unsolved = 0;
+        int n_no_observation = 0;
+        int n_invalid_anchor = 0;
+        int n_invalid_depth = 0;
+        int n_invalid_world_point = 0;
+        int n_published = 0;
         for (auto &it_per_id : estimator.f_manager.feature)
         {
             int frame_size = it_per_id.feature_per_frame.size();
-            if (it_per_id.solve_flag != 1)
+            if (it_per_id.solve_flag != 1) {
+                n_unsolved++;
                 continue;
+            }
 
             // Find the observation at the selected keyframe.
             const auto obs_it = std::find_if(
@@ -515,8 +523,10 @@ void pubKeyframeSynchronized(const Estimator &estimator, const std_msgs::Header 
             );
 
             // This landmark is not observed at the selected keyframe.
-            if (obs_it == it_per_id.feature_per_frame.end())
+            if (obs_it == it_per_id.feature_per_frame.end()) {
+                n_no_observation++;
                 continue;
+            }
 
             // Validate the anchor observation.
             if (it_per_id.feature_per_frame.empty())
@@ -525,13 +535,17 @@ void pubKeyframeSynchronized(const Estimator &estimator, const std_msgs::Header 
             const int anchor_idx =
                 it_per_id.feature_per_frame.front().frame_idx;
 
-            if (anchor_idx < 0 || anchor_idx > WINDOW_SIZE)
+            if (anchor_idx < 0 || anchor_idx > WINDOW_SIZE) {
+                n_invalid_anchor++;
                 continue;
+            }
 
             if (!std::isfinite(it_per_id.estimated_depth) ||
-                it_per_id.estimated_depth <= 0.0)
+                it_per_id.estimated_depth <= 0.0) {
+                n_invalid_depth++;
                 continue;
-
+            }
+            
             // Reconstruct the 3D landmark in the world frame.
             const Eigen::Vector3d pts_i =
                 it_per_id.feature_per_frame.front().point *
@@ -542,8 +556,10 @@ void pubKeyframeSynchronized(const Estimator &estimator, const std_msgs::Header 
                 (estimator.ric[0] * pts_i + estimator.tic[0]) +
                 estimator.Ps[anchor_idx];
 
-            if (!w_pts_i.allFinite())
+            if (!w_pts_i.allFinite()) {
+                n_invalid_world_point++;
                 continue;
+            }
 
             geometry_msgs::Point32 p;
             p.x = w_pts_i.x();
@@ -581,6 +597,20 @@ void pubKeyframeSynchronized(const Estimator &estimator, const std_msgs::Header 
             point_cloud.points.push_back(p);
             point_cloud.channels.push_back(p_2d);
         }
+        ROS_INFO_THROTTLE(
+            1.0,
+            "[KF_DIAG] idx=%d total=%zu "
+            "unsolved=%d no_obs=%d bad_anchor=%d "
+            "bad_depth=%d bad_world=%d published=%zu",
+            keyframe_idx,
+            estimator.f_manager.feature.size(),
+            n_unsolved,
+            n_no_observation,
+            n_invalid_anchor,
+            n_invalid_depth,
+            n_invalid_world_point,
+            point_cloud.points.size()
+        );
         pub_keyframe_point.publish(point_cloud);//把关键帧中的地图点发布出来  （里面包括了，关键帧中，每一个地图点的世界坐标系3D点，相机坐标系下的归一化坐标以及像素坐标+特征点的id）
     }
 }
