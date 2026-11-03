@@ -560,6 +560,24 @@ void pubKeyframeSynchronized(const Estimator &estimator, const std_msgs::Header 
                 static_cast<float>(it_per_id.feature_id)
             );
 
+            ROS_INFO_THROTTLE(
+                1.0,
+                "[KEYFRAME_SYNC] "
+                "landmark_id=%d anchor_idx=%d keyframe_idx=%d "
+                "w_pts_i=(%.3f, %.3f, %.3f) "
+                "obs_2d=(%.3f, %.3f) uv=(%.3f, %.3f)",
+                it_per_id.feature_id,
+                anchor_idx,
+                keyframe_idx,
+                w_pts_i.x(),
+                w_pts_i.y(),
+                w_pts_i.z(),
+                obs_it->point.x(),
+                obs_it->point.y(),
+                obs_it->uv.x(),
+                obs_it->uv.y()
+            );
+
             point_cloud.points.push_back(p);
             point_cloud.channels.push_back(p_2d);
         }
