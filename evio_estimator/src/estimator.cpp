@@ -628,7 +628,7 @@ void Estimator::processImageLineTime(const map<int, vector<pair<int, Eigen::Matr
 
         ROS_DEBUG("solver costs: %fms", t_solve.toc());
 
-        if (failureDetection())
+        if (has_frame_image && failureDetection())
         { // Restart VIO if a failure is detected.
             ROS_WARN("failure detection!");
             failure_occur = 1;
