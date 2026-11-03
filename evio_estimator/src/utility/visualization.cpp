@@ -444,6 +444,129 @@ void pubKeyframe(const Estimator &estimator)//把关键帧的pose以及地图点
     }
 }
 
+void pubKeyframeSynchronized(const Estimator &estimator, const std_msgs::Header &img_header)
+{
+    // pub camera pose, 2D-3D points of keyframe
+    if (estimator.solver_flag == Estimator::SolverFlag::NON_LINEAR && estimator.marginalization_flag == 0)
+    {//只有在非线性优化以及边缘化结束了之后才发布
+        int keyframe_idx = -1;
+        double best_dt = std::numeric_limits<double>::max();
+
+        for (int i = 0; i <= WINDOW_SIZE; ++i)
+        {
+            const double pose_t = estimator.Headers[i].stamp.toSec();
+
+            const double dt =
+                std::abs(pose_t - img_header.stamp.toSec());
+
+            if (dt < best_dt)
+            {
+                best_dt = dt;
+                keyframe_idx = i;
+            }
+        }
+        ROS_INFO_THROTTLE(
+            1.0,
+            "[KEYFRAME_SYNC] "
+            "img_t=%.6f keyframe_idx=%d keyframe_t=%.6f dt=%.6f",
+            img_header.stamp.toSec(),
+            keyframe_idx,
+            estimator.Headers[keyframe_idx].stamp.toSec(),
+            best_dt
+        );
+
+
+        int i = keyframe_idx;
+        //Vector3d P = estimator.Ps[i] + estimator.Rs[i] * estimator.tic[0];
+        Vector3d P = estimator.Ps[i];
+        Quaterniond R = Quaterniond(estimator.Rs[i]);
+
+        nav_msgs::Odometry odometry;
+        odometry.header = estimator.Headers[keyframe_idx];
+        odometry.header.frame_id = "world";
+        odometry.pose.pose.position.x = P.x();
+        odometry.pose.pose.position.y = P.y();
+        odometry.pose.pose.position.z = P.z();
+        odometry.pose.pose.orientation.x = R.x();
+        odometry.pose.pose.orientation.y = R.y();
+        odometry.pose.pose.orientation.z = R.z();
+        odometry.pose.pose.orientation.w = R.w();
+        //printf("time: %f t: %f %f %f r: %f %f %f %f\n", odometry.header.stamp.toSec(), P.x(), P.y(), P.z(), R.w(), R.x(), R.y(), R.z());
+
+        pub_keyframe_pose.publish(odometry);//关键帧的pose
+
+
+        sensor_msgs::PointCloud point_cloud;
+        point_cloud.header = estimator.Headers[keyframe_idx];
+        for (auto &it_per_id : estimator.f_manager.feature)
+        {
+            int frame_size = it_per_id.feature_per_frame.size();
+            if (it_per_id.solve_flag != 1)
+                continue;
+
+            // Find the observation at the selected keyframe.
+            const auto obs_it = std::find_if(
+                it_per_id.feature_per_frame.begin(),
+                it_per_id.feature_per_frame.end(),
+                [keyframe_idx](const FeaturePerFrame &obs)
+                {
+                    return obs.frame_idx == keyframe_idx;
+                }
+            );
+
+            // This landmark is not observed at the selected keyframe.
+            if (obs_it == it_per_id.feature_per_frame.end())
+                continue;
+
+            // Validate the anchor observation.
+            if (it_per_id.feature_per_frame.empty())
+                continue;
+
+            const int anchor_idx =
+                it_per_id.feature_per_frame.front().frame_idx;
+
+            if (anchor_idx < 0 || anchor_idx > WINDOW_SIZE)
+                continue;
+
+            if (!std::isfinite(it_per_id.estimated_depth) ||
+                it_per_id.estimated_depth <= 0.0)
+                continue;
+
+            // Reconstruct the 3D landmark in the world frame.
+            const Eigen::Vector3d pts_i =
+                it_per_id.feature_per_frame.front().point *
+                it_per_id.estimated_depth;
+
+            const Eigen::Vector3d w_pts_i =
+                estimator.Rs[anchor_idx] *
+                (estimator.ric[0] * pts_i + estimator.tic[0]) +
+                estimator.Ps[anchor_idx];
+
+            if (!w_pts_i.allFinite())
+                continue;
+
+            geometry_msgs::Point32 p;
+            p.x = w_pts_i.x();
+            p.y = w_pts_i.y();
+            p.z = w_pts_i.z();
+
+            // Use the actual observation at keyframe_idx.
+            sensor_msgs::ChannelFloat32 p_2d;
+            p_2d.values.push_back(obs_it->point.x());
+            p_2d.values.push_back(obs_it->point.y());
+            p_2d.values.push_back(obs_it->uv.x());
+            p_2d.values.push_back(obs_it->uv.y());
+            p_2d.values.push_back(
+                static_cast<float>(it_per_id.feature_id)
+            );
+
+            point_cloud.points.push_back(p);
+            point_cloud.channels.push_back(p_2d);
+        }
+        pub_keyframe_point.publish(point_cloud);//把关键帧中的地图点发布出来  （里面包括了，关键帧中，每一个地图点的世界坐标系3D点，相机坐标系下的归一化坐标以及像素坐标+特征点的id）
+    }
+}
+
 void pubRelocalization(const Estimator &estimator)//发布重定位的结果
 {
     nav_msgs::Odometry odometry;

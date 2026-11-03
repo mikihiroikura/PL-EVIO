@@ -1347,7 +1347,12 @@ void process_point_line_highfreq_image()
             pubCameraPose(estimator, header);
             pubPointCloud(estimator, header);// Publish the point cloud based on the estimator, including its pose.
             pubTF(estimator, header);// Publish the camera-to-IMU extrinsic transform.
-            pubKeyframe(estimator);// Publish keyframe poses and map points.
+            // pubKeyframe(estimator);// Publish keyframe poses and map points.
+            if (img_msg != NULL) {
+                std::msgs::Header img_header = img_msg->header;
+                img_header.frame_id = "world";
+                pubKeyframeSynchronized(estimator, img_header); // Publish keyframe poses and map points only on actual image frames.
+            }
             if (relo_msg != NULL)
                 pubRelocalization(estimator);// Publish the loop-closure relocalization result.
         }
