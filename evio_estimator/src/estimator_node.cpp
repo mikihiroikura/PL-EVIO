@@ -370,27 +370,27 @@ void feature_callback(const sensor_msgs::PointCloudConstPtr &feature_msg)//è®¢é˜
 void linefeature_callback(const sensor_msgs::PointCloudConstPtr &feature_msg)
 {
     // ----DEBUG for 100hz lines
-    static double last_t = -1.0;
+    // static double last_t = -1.0;
 
-    const double t = feature_msg->header.stamp.toSec();
+    // const double t = feature_msg->header.stamp.toSec();
 
-    if (last_t >= 0.0 && t > last_t)
-    {
-        const double dt_ms =
-            (t - last_t) * 1000.0;
+    // if (last_t >= 0.0 && t > last_t)
+    // {
+    //     const double dt_ms =
+    //         (t - last_t) * 1000.0;
 
-        ROS_INFO_THROTTLE(
-            1.0,
-            "[LINE_RX] t=%.6f dt=%.3fms "
-            "freq=%.2fHz lines=%zu",
-            t,
-            dt_ms,
-            1000.0 / dt_ms,
-            feature_msg->points.size()
-        );
-    }
+    //     ROS_INFO_THROTTLE(
+    //         1.0,
+    //         "[LINE_RX] t=%.6f dt=%.3fms "
+    //         "freq=%.2fHz lines=%zu",
+    //         t,
+    //         dt_ms,
+    //         1000.0 / dt_ms,
+    //         feature_msg->points.size()
+    //     );
+    // }
 
-    last_t = t;
+    // last_t = t;
     // ---- DEBUG end
     m_buf.lock();
     linefeature_buf.push(feature_msg);
@@ -829,55 +829,55 @@ void process_pointline_image()
             // ROS_ERROR("The number of the event line:%d", line_msg->points.size());
             // ROS_ERROR("The number of the image point:%d",img_msg->points.size());
             // ----DEBUG for 100Hz images and lines----
-            static double last_backend_t = -1.0;
-            const double t_img = img_msg->header.stamp.toSec();
-            const double dt_ms =
-                last_backend_t >= 0.0
-                    ? (t_img - last_backend_t) * 1000.0
-                    : -1.0;
+            // static double last_backend_t = -1.0;
+            // const double t_img = img_msg->header.stamp.toSec();
+            // const double dt_ms =
+            //     last_backend_t >= 0.0
+            //         ? (t_img - last_backend_t) * 1000.0
+            //         : -1.0;
 
-            ROS_INFO_THROTTLE(
-                1.0,
-                "[BACKEND_INPUT] img_t=%.6f "
-                "dt=%.3fms freq=%.2fHz "
-                "image_points=%zu "
-                "line_msgs=%zu event_msgs=%zu",
-                t_img,
-                dt_ms,
-                dt_ms > 0.0 ? 1000.0 / dt_ms : 0.0,
-                img_msg->points.size(),
-                line_msg.size(),
-                event_msg.size()
-            );
+            // ROS_INFO_THROTTLE(
+            //     1.0,
+            //     "[BACKEND_INPUT] img_t=%.6f "
+            //     "dt=%.3fms freq=%.2fHz "
+            //     "image_points=%zu "
+            //     "line_msgs=%zu event_msgs=%zu",
+            //     t_img,
+            //     dt_ms,
+            //     dt_ms > 0.0 ? 1000.0 / dt_ms : 0.0,
+            //     img_msg->points.size(),
+            //     line_msg.size(),
+            //     event_msg.size()
+            // );
 
-            last_backend_t = t_img;
+            // last_backend_t = t_img;
 
-            if (!line_msg.empty())
-            {
-                const double img_t =
-                    img_msg->header.stamp.toSec();
+            // if (!line_msg.empty())
+            // {
+            //     const double img_t =
+            //         img_msg->header.stamp.toSec();
 
-                const double first_line_t =
-                    line_msg.front()->header.stamp.toSec();
+            //     const double first_line_t =
+            //         line_msg.front()->header.stamp.toSec();
 
-                const double last_line_t =
-                    line_msg.back()->header.stamp.toSec();
+            //     const double last_line_t =
+            //         line_msg.back()->header.stamp.toSec();
 
-                ROS_INFO_THROTTLE(
-                    1.0,
-                    "[LINE_SYNC] img=%.6f "
-                    "line_first=%.6f line_last=%.6f "
-                    "dt_first=%.3fms dt_last=%.3fms "
-                    "num_msgs=%zu num_segments=%zu",
-                    img_t,
-                    first_line_t,
-                    last_line_t,
-                    (img_t - first_line_t) * 1000.0,
-                    (img_t - last_line_t) * 1000.0,
-                    line_msg.size(),
-                    line_msg.front()->points.size()
-                );
-            }
+            //     ROS_INFO_THROTTLE(
+            //         1.0,
+            //         "[LINE_SYNC] img=%.6f "
+            //         "line_first=%.6f line_last=%.6f "
+            //         "dt_first=%.3fms dt_last=%.3fms "
+            //         "num_msgs=%zu num_segments=%zu",
+            //         img_t,
+            //         first_line_t,
+            //         last_line_t,
+            //         (img_t - first_line_t) * 1000.0,
+            //         (img_t - last_line_t) * 1000.0,
+            //         line_msg.size(),
+            //         line_msg.front()->points.size()
+            //     );
+            // }
             // ----DEBUG for 100Hz images and lines----
 
 

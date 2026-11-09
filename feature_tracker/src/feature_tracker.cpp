@@ -1189,12 +1189,14 @@ void FeatureTracker::process_linefeature_from_csv(const dvs_msgs::EventArray &la
     int start_index = all_line_segments.current_index;
     for (int i = start_index; i < all_line_segments.timestamps.size(); ++i) {
         if (all_line_segments.timestamps[i] > cur_time_ros) {
-            ROS_INFO_THROTTLE(
-                1.0,
-                "Current ROS time: %.9f, Segment timestamp: %.9f",
-                cur_time_ros,
-                all_line_segments.timestamps[i]
-            );
+            // ---- DEBUG for 100hz lines
+            // ROS_INFO_THROTTLE(
+            //     1.0,
+            //     "Current ROS time: %.9f, Segment timestamp: %.9f",
+            //     cur_time_ros,
+            //     all_line_segments.timestamps[i]
+            // );
+            // ---- DEBUG end
             break; // Stop if the segment timestamp exceeds the current time
         }
         all_line_segments.current_index++;

@@ -118,7 +118,7 @@ save_loop_match: 0              #
 
 ###########################################################################################################################################################
 # line segments csv file
-line_segments_csv: "/data/LineSegments/LEDGE/dynamic_6dof/ledge_seq/a10_th020/full_100hz.csv" # If we waht to use other method result, we specify one line segemnt csv extracted from this method.
+line_segments_csv: "/data/LineSegments/LEDGE/dynamic_6dof/ledge_seq/a10_th020/ledge-refined_lsg_100hz.csv" # If we waht to use other method result, we specify one line segemnt csv extracted from this method.
 line_segments_method: "LEDGE" # Speficy method name
 rosbag_start_time: 1473347517.06 # rosbag start time
 use_only_endpoints: 1 # (Option for only PL-EVIO) If we want to discard other information except endpoints, use 1
