@@ -807,6 +807,29 @@ void process_pointline_image()
             // ROS_ERROR("The number of the event point:%d",event_msg->points.size());
             // ROS_ERROR("The number of the event line:%d", line_msg->points.size());
             // ROS_ERROR("The number of the image point:%d",img_msg->points.size());
+            // ----DEBUG for 100Hz images and lines----
+            static double last_backend_t = -1.0;
+            const double t_img = img_msg->header.stamp.toSec();
+            const double dt_ms =
+                last_backend_t >= 0.0
+                    ? (t_img - last_backend_t) * 1000.0
+                    : -1.0;
+
+            ROS_INFO_THROTTLE(
+                1.0,
+                "[BACKEND_INPUT] img_t=%.6f "
+                "dt=%.3fms freq=%.2fHz "
+                "image_points=%zu "
+                "line_msgs=%zu event_msgs=%zu",
+                t_img,
+                dt_ms,
+                dt_ms > 0.0 ? 1000.0 / dt_ms : 0.0,
+                img_msg->points.size(),
+                line_msg.size(),
+                event_msg.size()
+            );
+
+            last_backend_t = t_img;
 
 
             // 先处理IMU部分
