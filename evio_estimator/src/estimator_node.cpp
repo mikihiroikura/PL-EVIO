@@ -367,14 +367,35 @@ void feature_callback(const sensor_msgs::PointCloudConstPtr &feature_msg)//订�
     // else{ROS_INFO("no enough event feature, please move the camera"); }
 }
 
-void linefeature_callback(const sensor_msgs::PointCloudConstPtr &feature_msg)//线特征
+void linefeature_callback(const sensor_msgs::PointCloudConstPtr &feature_msg)
 {
-    // if(feature_msg->points.size()>3){
-        m_buf.lock();
-        linefeature_buf.push(feature_msg);
-        m_buf.unlock();
-        con.notify_one();
-    // }
+    // ----DEBUG for 100hz lines
+    static double last_t = -1.0;
+
+    const double t = feature_msg->header.stamp.toSec();
+
+    if (last_t >= 0.0 && t > last_t)
+    {
+        const double dt_ms =
+            (t - last_t) * 1000.0;
+
+        ROS_INFO_THROTTLE(
+            1.0,
+            "[LINE_RX] t=%.6f dt=%.3fms "
+            "freq=%.2fHz lines=%zu",
+            t,
+            dt_ms,
+            1000.0 / dt_ms,
+            feature_msg->points.size()
+        );
+    }
+
+    last_t = t;
+    // ---- DEBUG end
+    m_buf.lock();
+    linefeature_buf.push(feature_msg);
+    m_buf.unlock();
+    con.notify_one();
 }
 
 void imagefeature_callback(const sensor_msgs::PointCloudConstPtr &feature_msg)
