@@ -53,6 +53,11 @@ class Estimator
                       const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, //事件点状特征
                       const map<int, vector<pair<int, Vector4d>>> &lines,//事件线状特征 
                       const std_msgs::Header &header);
+    void processImageLineTime(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, // Frame point features
+                             const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, // Event point features.
+                             const map<int, vector<pair<int, Vector4d>>> &lines,// Event line features.
+                             const std_msgs::Header &line_header,
+                             bool has_frame_image);
     void Setreo_processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, //图像状特征
                             const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &event, //事件点状特征
                             const map<int, vector<pair<int, Vector4d>>> &lines,//事件线状特征 
@@ -61,6 +66,8 @@ class Estimator
 
     // internal
     void clearState();
+    void startHighRateWindow();
+    bool advanceHighRateWindow();
 
     bool initialStructure();
     bool initialStructureStereo();//双目初始化
@@ -79,6 +86,7 @@ class Estimator
 
     void slideWindow();
     void slideWindowNew();
+    void slideWindowNew(int delete_idx);
     void slideWindowOld();
 
     void optimization();//仅仅针对点特征进行优化

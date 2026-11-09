@@ -406,6 +406,27 @@ void process()// 回环检测主要处理函数，也是需要重点关注改进
         }
         m_buf.unlock();
         // 至此取出了时间戳同步的原图，KF和地图点信息
+        //----DEBUG----
+        if (image_msg && pose_msg && point_msg)
+        {
+            ROS_INFO_THROTTLE(
+                1.0,
+                "[LOOP_SYNC] "
+                "image=%.6f pose=%.6f point=%.6f "
+                "dt_pose=%.3fms dt_point=%.3fms",
+                image_msg->header.stamp.toSec(),
+                pose_msg->header.stamp.toSec(),
+                point_msg->header.stamp.toSec(),
+                1000.0 * (
+                    pose_msg->header.stamp.toSec() -
+                    image_msg->header.stamp.toSec()
+                ),
+                1000.0 * (
+                    point_msg->header.stamp.toSec() -
+                    image_msg->header.stamp.toSec()
+                )
+            );
+        }
 
         // 构建pose_graph中用到的关键帧，然后每隔SKIP_CNT，将将距上一关键帧距离（平移向量的模）超过SKIP_DIS的图像创建为关键帧。
         // 其中，最核心的函数是KeyFrame类以及addKeyFrame（）函数。
@@ -493,6 +514,14 @@ void process()// 回环检测主要处理函数，也是需要重点关注改进
                 }
 
                 // 创建为关键帧类型并加入到posegraph中(通过函数addKeyFrame)
+                // ----DEBUG----
+                ROS_INFO_THROTTLE(
+                    1.0,
+                    "[LOOP_KEYFRAME] "
+                    "frame_index=%d timestamp=%.6f",
+                    frame_index,
+                    pose_msg->header.stamp.toSec()
+                );
                 KeyFrame* keyframe = new KeyFrame(pose_msg->header.stamp.toSec(), frame_index, T, R, image,
                                    point_3d, point_2d_uv, point_2d_normal, point_id, sequence);   // 创建回环检测节点的KF
                 //时间，第几个窗口，当前关键帧的T与R，跟踪的图片，当前关键帧的地图点（每一个地图点的世界坐标系3D点，相机坐标系下的归一化坐标以及像素坐标+特征点的id），序列

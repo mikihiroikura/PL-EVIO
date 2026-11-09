@@ -5,6 +5,7 @@ std::string IMAGE_TOPIC;
 std::string IMAGE1_TOPIC;//双目时，左相机的topic
 std::string IMAGE2_TOPIC; //双目时，右相机的topic
 std::string EVENT_TOPIC;//事件的话题
+std::string EVENT_LINE_TOPIC;//事件线的话题
 std::string IMU_TOPIC;
 std::string LINE_SEGMENTS_CSV = "";
 std::string LINE_SEGMENTS_METHOD = "";
@@ -22,6 +23,7 @@ int MIN_DIST_IMG;//图像特征的距离
 int WINDOW_SIZE;
 int FREQ;//发布事件前端的频率
 int FREQ_IMG;//发布图像前端的频率
+int FREQ_LINE = 20;// Line feature publishing frequency
 double F_THRESHOLD;
 
 double TS_LK_THRESHOLD;//time surface阈值
@@ -41,6 +43,7 @@ int FOCAL_LENGTH;
 int FISHEYE;
 int USE_ONLY_ENDPOINTS=0; // Flag to use only endpoints of line segments, discard other features calculated from LSD
 bool PUB_THIS_FRAME;
+bool PUB_THIS_LINE;
 int Num_of_thread;//处理大量event数组的时候采用多少个线程
 
 //线特征相关的
@@ -92,6 +95,8 @@ void readParameters(ros::NodeHandle &n)
     fsSettings["image1_topic"] >> IMAGE1_TOPIC;
     fsSettings["image2_topic"] >> IMAGE2_TOPIC; 
     fsSettings["event_topic"] >> EVENT_TOPIC;//事件话题的读入
+    fsSettings["event_line_topic"] >> EVENT_LINE_TOPIC;//事件线话题的读入
+    ROS_INFO("event_line_topic: %s", EVENT_LINE_TOPIC.c_str());
     fsSettings["imu_topic"] >> IMU_TOPIC;
     fsSettings["line_segments_csv"] >> LINE_SEGMENTS_CSV;
     fsSettings["line_segments_method"] >> LINE_SEGMENTS_METHOD;
@@ -108,6 +113,13 @@ void readParameters(ros::NodeHandle &n)
     ROW = fsSettings["image_height"];
     COL = fsSettings["image_width"];
     FREQ = fsSettings["freq"];//发布给后端的频率
+    cv::FileNode freq_line_node = fsSettings["freq_line"];
+    if (!freq_line_node.empty()) {
+        freq_line_node >> FREQ_LINE;
+        ROS_INFO("freq_line is configured: %d", FREQ_LINE);
+    }
+    else
+        ROS_WARN("freq_line is not configured; using default: %d", FREQ_LINE);
     // FREQ_IMG=fsSettings["freq_img"];//发布图像前端的频率
     F_THRESHOLD = fsSettings["F_threshold"];
     Num_of_thread=fsSettings["Num_of_thread"];

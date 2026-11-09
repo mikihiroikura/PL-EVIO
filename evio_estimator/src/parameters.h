@@ -11,7 +11,8 @@
 #define SQ(x) (((x)*(x)))
 
 const double FOCAL_LENGTH = 460.0;
-const int WINDOW_SIZE = 10;
+const int INIT_WINDOW_SIZE = 10;  // 20 Hz SFM window: 10 intervals / 11 poses.
+const int WINDOW_SIZE = INIT_WINDOW_SIZE * 5;  // 100 Hz nonlinear window.
 const int NUM_OF_CAM = 1; 
 const int NUM_OF_CAM_stereo = 2; 
 const int NUM_OF_F = 3000; //1000;
