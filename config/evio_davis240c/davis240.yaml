@@ -4,7 +4,7 @@
 imu_topic: "/dvs/imu"
 image_topic: "/dvs/image_raw"
 event_topic: "/dvs/events"   # this is modified
-# event_topic: "/davis240c/events"   # this is modified
+event_line_topic: "/dvs/events_line"   # event array for line feature callback
 output_path: "/home/plevio"
 
 ###########################################################################################################################
@@ -63,6 +63,7 @@ max_cnt: 100            # max feature number in feature tracking
 min_dist: 10            # min distance between two event features 
 min_dist_img: 10            # min distance between two image features 
 freq: 20                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
+freq_line: 100 # LEDGE evaluation (default 20 Hz)
 F_threshold: 1.0        # ransac threshold (pixel)
 show_track: 1           # publish tracking image as topic
 flow_back: 1            # perform forward and backward optical flow to improve feature tracking accuracy
