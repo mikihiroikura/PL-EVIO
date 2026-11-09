@@ -852,6 +852,35 @@ void process_pointline_image()
 
             last_backend_t = t_img;
 
+            if (!line_msg.empty())
+            {
+                const double img_t =
+                    img_msg->header.stamp.toSec();
+
+                const double first_line_t =
+                    line_msg.front()->header.stamp.toSec();
+
+                const double last_line_t =
+                    line_msg.back()->header.stamp.toSec();
+
+                ROS_INFO_THROTTLE(
+                    1.0,
+                    "[LINE_SYNC] img=%.6f "
+                    "line_first=%.6f line_last=%.6f "
+                    "dt_first=%.3fms dt_last=%.3fms "
+                    "num=%zu",
+                    "line first num=%zu",
+                    img_t,
+                    first_line_t,
+                    last_line_t,
+                    (img_t - first_line_t) * 1000.0,
+                    (img_t - last_line_t) * 1000.0,
+                    line_msg.size(),
+                    line_msg.front()->points.size()
+                );
+            }
+            // ----DEBUG for 100Hz images and lines----
+
 
             // 先处理IMU部分
             double dx = 0, dy = 0, dz = 0, rx = 0, ry = 0, rz = 0;
