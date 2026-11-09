@@ -1188,7 +1188,8 @@ void FeatureTracker::process_linefeature_from_csv(const dvs_msgs::EventArray &la
     std::vector<cv::line_descriptor::KeyLine> lsd, keylsd;
     int start_index = all_line_segments.current_index;
     for (int i = start_index; i < all_line_segments.timestamps.size(); ++i) {
-        if (all_line_segments.timestamps[i] > cur_time) {
+        if (all_line_segments.timestamps[i] > cur_time_ros) {
+            ROS_INFO("Current ROS time: %f, Segment timestamp: %f", cur_time_ros, all_line_segments.timestamps[i]);
             break; // Stop if the segment timestamp exceeds the current time
         }
         all_line_segments.current_index++;
