@@ -868,8 +868,7 @@ void process_pointline_image()
                     "[LINE_SYNC] img=%.6f "
                     "line_first=%.6f line_last=%.6f "
                     "dt_first=%.3fms dt_last=%.3fms "
-                    "num=%zu",
-                    "line first num=%zu",
+                    "num_msgs=%zu num_segments=%zu",
                     img_t,
                     first_line_t,
                     last_line_t,
